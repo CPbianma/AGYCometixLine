@@ -60,7 +60,7 @@ const STATUS_KEYS: [&str; 5] = [
 
 /// Internal compatibility helper; only recognizes agyline commands.
 pub fn is_ccline(command: &str) -> bool {
-    command.contains("agyline")
+    command.contains("agyline") || crate::windows_command::recognises(command)
 }
 
 /// Stable installation command, never a build-directory executable.

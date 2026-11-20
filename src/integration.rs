@@ -110,7 +110,6 @@ impl Installation {
         let mut line = base.status_line().unwrap_or_default();
         line.command = self.command()?;
         line.enabled = Some(true);
-        line.stack_with_default = line.stack_with_default.or(Some(false));
         draft.set_status_line(Some(&line));
         Ok((base, draft))
     }
@@ -152,8 +151,11 @@ impl Installation {
             &self.executable_path(),
         )?;
         if active.as_ref().is_some_and(|record| {
-            record.installed_status_line == installed
-                && base.status_line_value() == Some(&record.installed_status_line)
+            same_host_statusline(Some(&record.installed_status_line), Some(&installed))
+                && same_host_statusline(
+                    base.status_line_value(),
+                    Some(&record.installed_status_line),
+                )
         }) {
             return self.status();
         }
@@ -238,7 +240,10 @@ impl Installation {
         let record = self.read_record()?;
         let state = match &record {
             Some(record) if record.active => {
-                if settings.status_line_value() != Some(&record.installed_status_line) {
+                if !same_host_statusline(
+                    settings.status_line_value(),
+                    Some(&record.installed_status_line),
+                ) {
                     if matches_original_status_line(&settings, record) {
                         "recovery pending: statusLine matches original; retry install or uninstall"
                     } else {
@@ -286,12 +291,37 @@ fn matches_original_status_line(settings: &Settings, record: &Record) -> bool {
 }
 
 fn ensure_recoverable(settings: &Settings, record: &Record) -> Result<(), String> {
-    if settings.status_line_value() != Some(&record.installed_status_line)
-        && !matches_original_status_line(settings, record)
+    if !same_host_statusline(
+        settings.status_line_value(),
+        Some(&record.installed_status_line),
+    ) && !matches_original_status_line(settings, record)
     {
         return Err("statusLine changed since installation; refusing to overwrite it (see installation.json)".into());
     }
     Ok(())
+}
+
+/// AGY rewrites its settings and omits these documented default values.
+/// Unknown keys, commands, non-default values and absent objects stay distinct.
+fn same_host_statusline(left: Option<&Value>, right: Option<&Value>) -> bool {
+    let normalized = |value: Option<&Value>| {
+        value.cloned().map(|mut value| {
+            if let Some(object) = value.as_object_mut() {
+                for (key, default) in [
+                    ("type", serde_json::json!("command")),
+                    ("enabled", serde_json::json!(true)),
+                    ("padding", serde_json::json!(0)),
+                    ("stack_with_default", serde_json::json!(false)),
+                ] {
+                    if object.get(key) == Some(&default) {
+                        object.remove(key);
+                    }
+                }
+            }
+            value
+        })
+    };
+    normalized(left) == normalized(right)
 }
 
 fn absolute(path: &Path) -> Result<PathBuf, String> {
@@ -313,7 +343,11 @@ pub fn command_for_path(path: &Path) -> Result<String, String> {
                     .into(),
             );
         }
-        Ok(format!("\"{path}\""))
+        if path.chars().any(char::is_whitespace) {
+            crate::windows_command::for_executable(path)
+        } else {
+            Ok(path.to_string())
+        }
     } else {
         Ok(format!("'{}'", path.replace('\'', "'\"'\"'")))
     }

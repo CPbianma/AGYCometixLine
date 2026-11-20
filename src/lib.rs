@@ -21,3 +21,4 @@ pub mod style;
 pub mod tui;
 pub mod version;
 pub mod widgets;
+mod windows_command;

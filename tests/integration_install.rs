@@ -106,7 +106,10 @@ fn install_is_stable_idempotent_and_restores_only_statusline() {
         "agyline"
     });
     assert!(executable.is_file());
-    assert!(command.contains(executable.to_str().unwrap()));
+    assert_eq!(
+        command,
+        ccometixline::integration::command_for_path(&executable).unwrap()
+    );
     assert!(!command.contains("target"));
     assert_eq!(installed["statusLine"]["type"], "command");
     assert_eq!(installed["statusLine"]["enabled"], true);
@@ -150,6 +153,79 @@ fn absent_statusline_is_removed_and_a_changed_one_is_never_overwritten() {
     assert_success(sandbox.run("uninstall"));
     assert!(sandbox.read().get("statusLine").is_none());
     assert_eq!(sandbox.read()["theme"], "after");
+}
+
+#[test]
+fn host_omission_of_default_statusline_fields_is_not_an_ownership_conflict() {
+    let sandbox = Sandbox::new();
+    let original = json!({
+        "keep": "original", "statusLine": {"padding": 0, "stack_with_default": false}
+    });
+    sandbox.write(original.clone());
+    assert_success(sandbox.run("install"));
+    let record = std::fs::read(sandbox.record()).unwrap();
+    let mut normalized = sandbox.read();
+    for key in ["stack_with_default", "padding", "enabled", "type"] {
+        normalized["statusLine"]
+            .as_object_mut()
+            .unwrap()
+            .remove(key);
+    }
+    sandbox.write(normalized);
+    assert!(assert_success(sandbox.run("status")).starts_with("agyline: installed"));
+    assert_success(sandbox.run("install"));
+    assert_eq!(std::fs::read(sandbox.record()).unwrap(), record);
+    assert_success(sandbox.run("uninstall"));
+    assert_eq!(sandbox.read(), original);
+}
+
+#[test]
+fn nondefault_and_unknown_statusline_edits_remain_ownership_conflicts() {
+    for (key, value) in [
+        ("enabled", json!(false)),
+        ("padding", json!(1)),
+        ("stack_with_default", json!(true)),
+        ("future_option", json!({"keep": true})),
+    ] {
+        let sandbox = Sandbox::new();
+        sandbox.write(json!({"unrelated": "preserve me"}));
+        assert_success(sandbox.run("install"));
+        let record = std::fs::read(sandbox.record()).unwrap();
+        let mut edited = sandbox.read();
+        edited["statusLine"][key] = value;
+        sandbox.write(edited.clone());
+        assert!(
+            assert_success(sandbox.run("status")).contains("conflict"),
+            "{key}"
+        );
+        assert!(!sandbox.run("install").status.success(), "{key}");
+        assert!(!sandbox.run("uninstall").status.success(), "{key}");
+        assert_eq!(sandbox.read(), edited);
+        assert_eq!(std::fs::read(sandbox.record()).unwrap(), record);
+    }
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_native_host_command_never_starts_with_a_quote() {
+    let executable = Path::new(r"C:\Users\用户\agyline.exe");
+    assert_eq!(
+        ccometixline::integration::command_for_path(executable).unwrap(),
+        executable.to_str().unwrap()
+    );
+    let spaced =
+        ccometixline::integration::command_for_path(Path::new(r"C:\Users\Some User\agyline.exe"))
+            .unwrap();
+    let launcher = Path::new(spaced.split(" -NoLogo").next().unwrap());
+    assert!(launcher.is_absolute() && launcher.is_file(), "{spaced}");
+    assert!(
+        launcher
+            .to_string_lossy()
+            .to_ascii_lowercase()
+            .ends_with("\\windowspowershell\\v1.0\\powershell.exe"),
+        "{spaced}"
+    );
+    assert!(!spaced.contains('"'), "{spaced}");
 }
 
 #[test]
@@ -235,7 +311,8 @@ fn atomic_writer_never_follows_an_existing_temporary_hard_link() {
 
 #[test]
 fn installed_command_runs_from_a_unicode_path_with_spaces() {
-    let sandbox = Sandbox::new();
+    let mut sandbox = Sandbox::new();
+    sandbox.home = sandbox.root.join("stable 'quoted' O’Brien home 中文");
     sandbox.write(json!({}));
     assert_success(sandbox.run("install"));
     let command = sandbox.read()["statusLine"]["command"]
@@ -246,22 +323,53 @@ fn installed_command_runs_from_a_unicode_path_with_spaces() {
     let mut process = {
         use std::os::windows::process::CommandExt;
         let mut process = Command::new("cmd.exe");
-        // cmd.exe parses a command string, not MSVC-escaped argv. Match
-        // the host shell's outer /s /c quotes without adding backslashes.
-        process
-            .args(["/d", "/s", "/c"])
-            .raw_arg(format!("\"{command} --version\""));
+        // Exercise stdin rendering, exactly as the native host invokes it.
+        process.args(["/d", "/s", "/c"]).raw_arg(&command);
         process
     };
     #[cfg(not(windows))]
     let mut process = {
         let mut process = Command::new("sh");
-        process.args(["-c", &format!("{command} --version")]);
+        process.args(["-c", &command]);
         process
     };
-    let output = process.output().unwrap();
-    let version = assert_success(output);
-    assert!(version.contains("agyline 0.1.0"), "{version}");
+    use std::io::Write;
+    process
+        .current_dir(&sandbox.root)
+        .env("AGYLINE_HOME", &sandbox.home)
+        .env("AGY_CONFIG_DIR", &sandbox.root)
+        .env("NO_COLOR", "1")
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(windows)]
+    {
+        std::fs::write(
+            sandbox.root.join("powershell.exe"),
+            "must not execute this file",
+        )
+        .unwrap();
+        let mut search_path = vec![sandbox.root.clone()];
+        search_path.extend(std::env::split_paths(
+            &std::env::var_os("PATH").unwrap_or_default(),
+        ));
+        process.env("PATH", std::env::join_paths(search_path).unwrap());
+    }
+    let mut payload: Value =
+        serde_json::from_str(include_str!("fixtures/antigravity.json")).unwrap();
+    payload["model"]["display_name"] = json!("Gemini 4 中文");
+    let mut child = process.spawn().unwrap();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(payload.to_string().as_bytes())
+        .unwrap();
+    let output = assert_success(child.wait_with_output().unwrap());
+    assert!(
+        output.contains("Gemini 4 中文") && output.contains("82% left"),
+        "{output}"
+    );
 }
 
 #[test]
@@ -660,11 +768,10 @@ fn environment_overrides_select_agy_paths_without_changing_other_settings() {
         .unwrap();
     assert_success(output);
     assert_eq!(read_json(&host_settings)["keep"], true);
-    assert!(
-        read_json(&host_settings)["statusLine"]["command"]
-            .as_str()
-            .unwrap()
-            .contains("agyline")
+    let installation = Installation::new(host_settings.clone(), sandbox.home.clone());
+    assert_eq!(
+        read_json(&host_settings)["statusLine"]["command"],
+        installation.command().unwrap()
     );
     assert!(!sandbox.settings.exists());
 }
