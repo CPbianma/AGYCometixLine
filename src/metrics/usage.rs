@@ -193,6 +193,20 @@ pub(super) fn context_tokens(cw: &ContextWindow) -> Option<u64> {
 
 fn context(ctx: &Ctx, _: &Options) -> Option<Reading> {
     let cw = ctx.input.context_window.as_ref()?;
+    if ctx.input.is_antigravity() {
+        let ratio = ctx.input.native_context_ratio()?;
+        let mut reading = Reading::default()
+            .set("pct", fmt::percent(ratio))
+            .ratio(ratio);
+        if let Some(window) = cw.context_window_size.filter(|window| *window > 0) {
+            let tokens = (ratio * window as f64).round() as u64;
+            reading = reading
+                .set("window", fmt::tokens(window))
+                .set("tokens", fmt::tokens(tokens))
+                .set("left", fmt::tokens(window.saturating_sub(tokens)));
+        }
+        return Some(reading);
+    }
     let tokens = context_tokens(cw)?;
     let resolved = ctx.model();
     let window = resolved.and_then(|r| r.window).or(cw.context_window_size)?;
@@ -353,8 +367,21 @@ fn quota_eta(ctx: &Ctx, _: &Options) -> Option<Reading> {
 }
 
 fn cost(ctx: &Ctx, _: &Options) -> Option<Reading> {
-    let usd = ctx.input.cost.as_ref()?.total_cost_usd?;
-    Some(Reading::default().set("usd", fmt::money(usd)))
+    let usd = ctx
+        .input
+        .cost
+        .as_ref()?
+        .total_cost_usd
+        .filter(|usd| usd.is_finite() && *usd >= 0.0)?;
+    let amount = fmt::money(usd);
+    Some(Reading::default().set(
+        "usd",
+        if ctx.input.is_antigravity() {
+            format!("~{amount}")
+        } else {
+            amount
+        },
+    ))
 }
 
 fn cache(ctx: &Ctx, _: &Options) -> Option<Reading> {

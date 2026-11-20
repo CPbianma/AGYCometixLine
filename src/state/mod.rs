@@ -172,11 +172,11 @@ pub struct StateView {
 }
 
 /// Record this render: add a session sample, fold the session's cost into
-/// today's ledger and note the model id. `raw` is the stdin payload, kept
-/// for replay. Returns what metrics read back.
+/// today's ledger and note the model id. Replay stores only the typed display
+/// contract, never raw account data or unknown input fields.
 pub fn observe(
     input: &Input,
-    raw: &str,
+    _raw: &str,
     registry: &Registry,
     now: i64,
     tz: FixedOffset,
@@ -195,20 +195,23 @@ pub fn observe(
 
     let mut session = SessionState::load(id);
     let added = session.record(current);
-    session.last_input = serde_json::from_str(raw).ok();
+    session.last_input = input.replay_value();
     session.save_if_needed(id, now, added);
 
-    let today_cost = current.cost.and_then(|cost| {
-        let local = DateTime::from_timestamp(now, 0)?.with_timezone(&tz);
-        let midnight = now - local.num_seconds_from_midnight() as i64;
-        let started_today = input
-            .cost
-            .as_ref()
-            .and_then(|c| c.total_duration_ms)
-            .is_some_and(|ms| now - (ms / 1000.0) as i64 >= midnight);
-        let date = local.format("%Y-%m-%d").to_string();
-        Some(ledger::update(id, cost, started_today, &date, now))
-    });
+    let today_cost = current
+        .cost
+        .filter(|_| !input.is_antigravity())
+        .and_then(|cost| {
+            let local = DateTime::from_timestamp(now, 0)?.with_timezone(&tz);
+            let midnight = now - local.num_seconds_from_midnight() as i64;
+            let started_today = input
+                .cost
+                .as_ref()
+                .and_then(|c| c.total_duration_ms)
+                .is_some_and(|ms| now - (ms / 1000.0) as i64 >= midnight);
+            let date = local.format("%Y-%m-%d").to_string();
+            Some(ledger::update(id, cost, started_today, &date, now))
+        });
 
     if let Some(model) = &input.model
         && let Some(model_id) = model.id.as_deref()
@@ -226,12 +229,18 @@ pub fn observe(
         // Unchanged values aren't stored, but rates still need "now".
         samples.push(current);
     }
-    bridge::prune();
+    if !input.is_antigravity() {
+        bridge::prune();
+    }
     StateView {
         samples,
         today_cost,
         latest_version: None,
-        bridge: bridge::read(id, now * 1000).map(std::rc::Rc::new),
+        bridge: if input.is_antigravity() {
+            None
+        } else {
+            bridge::read(id, now * 1000).map(std::rc::Rc::new)
+        },
     }
 }
 

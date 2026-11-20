@@ -2,6 +2,7 @@
 //! the mod bridge) and produces a `Reading` — text fields plus optional
 //! numbers for graphs — without knowing how it will be displayed.
 
+mod antigravity;
 mod code;
 mod custom;
 pub mod fmt;
@@ -253,10 +254,17 @@ impl<'a> Ctx<'a> {
                     .context_window
                     .as_ref()
                     .and_then(|c| c.context_window_size);
-                Some(
-                    self.registry
-                        .resolve(id, model.display_name.as_deref(), window),
-                )
+                let mut resolved = self
+                    .registry
+                    .resolve(id, model.display_name.as_deref(), window);
+                if self.input.is_antigravity() {
+                    resolved.window = window.filter(|window| *window > 0);
+                    resolved.window_corrected = false;
+                    if !matches!(resolved.source, crate::models::NameSource::UserRule(_)) {
+                        resolved.name = model.display_name.as_deref().unwrap_or(id).to_string();
+                    }
+                }
+                Some(resolved)
             })
             .as_ref()
     }
@@ -273,6 +281,7 @@ pub fn catalog() -> &'static [Metric] {
     CATALOG.get_or_init(|| {
         let mut all = Vec::new();
         all.extend(identity::metrics());
+        all.extend(antigravity::metrics());
         all.extend(usage::metrics());
         all.extend(projection::metrics());
         all.extend(code::metrics());
@@ -289,10 +298,37 @@ pub fn find(id: &str) -> Option<&'static Metric> {
 
 /// Compute `metric` if the running Claude Code supports it.
 pub fn read(metric: &Metric, ctx: &Ctx, opts: &Options) -> Option<Reading> {
+    if ctx.input.is_antigravity() && !antigravity_supported(metric.meta.id) {
+        return None;
+    }
     if metric.meta.min_cc.is_some_and(|min| !ctx.supports(min)) {
         return None;
     }
     (metric.compute)(ctx, opts)
+}
+
+/// Capabilities confirmed by the native host contract, not Claude versions.
+pub fn antigravity_supported(id: &str) -> bool {
+    matches!(
+        id,
+        "model"
+            | "dir"
+            | "git"
+            | "repo"
+            | "context"
+            | "context.trend"
+            | "vim"
+            | "agent"
+            | "session_name"
+            | "cc_version"
+            | "cmd"
+            | "cost"
+            | "quota"
+            | "plan"
+            | "state"
+            | "tasks"
+            | "mode"
+    )
 }
 
 #[cfg(test)]

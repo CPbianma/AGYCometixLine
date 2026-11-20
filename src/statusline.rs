@@ -68,6 +68,26 @@ pub fn budget(config: &Config, settings: &ClaudeSettings) -> Option<usize> {
     Some(width.saturating_sub(2 * (FOOTER_PADDING + padding) + config.layout.reserve as usize))
 }
 
+/// Native host padding is vertical; only our own layout settings reduce width.
+pub fn budget_for_input(
+    config: &Config,
+    settings: &ClaudeSettings,
+    input: &Input,
+) -> Option<usize> {
+    if !input.is_antigravity() {
+        return budget(config, settings);
+    }
+    let columns = config
+        .layout
+        .width
+        .0
+        .map(usize::from)
+        .or(input.terminal_width.filter(|columns| *columns > 0))
+        .or_else(crate::env::columns)?;
+    let inset = config.layout.padding.0.map(usize::from).unwrap_or(0);
+    Some(columns.saturating_sub(2 * inset + usize::from(config.layout.reserve)))
+}
+
 pub fn lines(input: &Input, config: &Config, registry: &Registry, frame: Frame) -> Vec<Line> {
     let theme = theme(config);
     if let Some(v) = input.cc_version()
@@ -251,11 +271,36 @@ pub fn subagent_lines(
 /// they came from (entries with nothing to show are skipped).
 fn line_spec(line: &LineConfig, ctx: &Ctx, theme: &Theme) -> (LineSpec, [Vec<usize>; 2]) {
     let side = |specs: &[ItemSpec]| -> (Vec<LaidItem>, Vec<usize>) {
-        specs
-            .iter()
-            .enumerate()
-            .filter_map(|(i, s)| Some((lay_item(&s.config(), ctx, theme)?, i)))
-            .unzip()
+        let mut items = Vec::new();
+        let mut sources = Vec::new();
+        for (index, specification) in specs.iter().enumerate() {
+            let configuration = specification.config();
+            let expand_quota = configuration.metric == "quota"
+                && configuration
+                    .options
+                    .as_ref()
+                    .and_then(|options| options.get("bucket"))
+                    .is_none();
+            if expand_quota {
+                if let Some(buckets) = &ctx.input.quota {
+                    for name in buckets.keys() {
+                        let mut configuration = configuration.clone().into_owned();
+                        configuration
+                            .options
+                            .get_or_insert_default()
+                            .insert("bucket".into(), toml::Value::String(name.clone()));
+                        if let Some(item) = lay_item(&configuration, ctx, theme) {
+                            items.push(item);
+                            sources.push(index);
+                        }
+                    }
+                }
+            } else if let Some(item) = lay_item(&configuration, ctx, theme) {
+                items.push(item);
+                sources.push(index);
+            }
+        }
+        (items, sources)
     };
     let (left, left_src) = side(&line.left);
     let (right, right_src) = side(&line.right);

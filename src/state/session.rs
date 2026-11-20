@@ -39,15 +39,28 @@ pub struct Sample {
 
 impl Sample {
     pub fn from_input(input: &Input, now: i64) -> Sample {
-        let rl = input.rate_limits.as_ref();
+        let rl = input.rate_limits.as_ref().filter(|_| !input.is_antigravity());
         Sample {
             t: now,
             p: input.prompt_id.as_deref().map(prompt_key),
-            ctx: input
-                .context_window
-                .as_ref()
-                .and_then(|c| c.total_input_tokens)
-                .filter(|t| *t > 0),
+            ctx: if input.is_antigravity() {
+                input
+                    .native_context_ratio()
+                    .zip(
+                        input
+                            .context_window
+                            .as_ref()
+                            .and_then(|context| context.context_window_size)
+                            .filter(|window| *window > 0),
+                    )
+                    .map(|(ratio, window)| (ratio * window as f64).round() as u64)
+            } else {
+                input
+                    .context_window
+                    .as_ref()
+                    .and_then(|context| context.total_input_tokens)
+                    .filter(|tokens| *tokens > 0)
+            },
             cost: input.cost.as_ref().and_then(|c| c.total_cost_usd),
             h5: rl.and_then(|r| r.five_hour.as_ref()?.used_percentage),
             h5_reset: rl

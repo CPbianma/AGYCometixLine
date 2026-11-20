@@ -5,7 +5,7 @@
 //! so a schema change upstream degrades one widget rather than the line.
 
 use crate::version::Version;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::BTreeMap;
 
 fn lenient<'de, D, T>(d: D) -> Result<Option<T>, D::Error>
@@ -17,9 +17,27 @@ where
     Ok(serde_json::from_value(value).ok())
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Input {
+    #[serde(deserialize_with = "lenient")]
+    pub product: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    pub terminal_width: Option<usize>,
+    #[serde(deserialize_with = "lenient")]
+    pub plan_tier: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    pub agent_state: Option<String>,
+    #[serde(deserialize_with = "quota_buckets")]
+    pub quota: Option<BTreeMap<String, QuotaBucket>>,
+    #[serde(deserialize_with = "lenient")]
+    pub task_count: Option<u64>,
+    #[serde(deserialize_with = "lenient")]
+    pub artifact_count: Option<u64>,
+    #[serde(deserialize_with = "lenient")]
+    pub cycle_mode: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    pub tool_confirmation_pending: Option<bool>,
     #[serde(deserialize_with = "lenient")]
     pub session_id: Option<String>,
     #[serde(deserialize_with = "lenient")]
@@ -66,14 +84,14 @@ pub struct Input {
     pub worktree: Option<Worktree>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Model {
     pub id: Option<String>,
     pub display_name: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Workspace {
     pub current_dir: Option<String>,
@@ -83,7 +101,7 @@ pub struct Workspace {
     pub repo: Option<Repo>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Repo {
     pub host: Option<String>,
@@ -91,13 +109,13 @@ pub struct Repo {
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct OutputStyle {
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Cost {
     pub total_cost_usd: Option<f64>,
@@ -107,7 +125,7 @@ pub struct Cost {
     pub total_lines_removed: Option<u64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct ContextWindow {
     pub total_input_tokens: Option<u64>,
@@ -118,7 +136,7 @@ pub struct ContextWindow {
     pub remaining_percentage: Option<f64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Usage {
     pub input_tokens: Option<u64>,
@@ -127,19 +145,19 @@ pub struct Usage {
     pub cache_read_input_tokens: Option<u64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Effort {
     pub level: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Thinking {
     pub enabled: Option<bool>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct RateLimits {
     pub five_hour: Option<Window>,
@@ -147,7 +165,7 @@ pub struct RateLimits {
     pub spend_limit: Option<SpendLimit>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Window {
     pub used_percentage: Option<f64>,
@@ -155,7 +173,7 @@ pub struct Window {
     pub resets_at: Option<f64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct SpendLimit {
     pub used_percentage: Option<f64>,
@@ -165,7 +183,7 @@ pub struct SpendLimit {
     pub period: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct PromptCache {
     pub warm: Option<bool>,
@@ -185,7 +203,7 @@ pub struct PromptCache {
     pub recache_tokens_if_cold: Option<u64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct MissCause {
     pub causes: Vec<String>,
@@ -194,25 +212,25 @@ pub struct MissCause {
     pub system_char_delta: Option<i64>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Vim {
     pub mode: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Agent {
     pub name: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Remote {
     pub session_id: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct PullRequest {
     pub number: Option<u64>,
@@ -222,7 +240,7 @@ pub struct PullRequest {
     pub kind: Option<String>,
 }
 
-#[derive(Clone, Debug, Default, Deserialize)]
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 #[serde(default)]
 pub struct Worktree {
     pub name: Option<String>,
@@ -230,6 +248,40 @@ pub struct Worktree {
     pub branch: Option<String>,
     pub original_cwd: Option<String>,
     pub original_branch: Option<String>,
+}
+
+/// Antigravity supplies independently named quota buckets, not fixed windows.
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+#[serde(default)]
+pub struct QuotaBucket {
+    #[serde(deserialize_with = "lenient")]
+    pub remaining_fraction: Option<f64>,
+    #[serde(deserialize_with = "lenient")]
+    pub remaining_amount: Option<f64>,
+    #[serde(deserialize_with = "lenient")]
+    pub reset_time: Option<String>,
+    #[serde(deserialize_with = "lenient")]
+    pub reset_in_seconds: Option<i64>,
+    #[serde(deserialize_with = "lenient")]
+    pub disabled: Option<bool>,
+}
+
+fn quota_buckets<'de, D>(deserializer: D) -> Result<Option<BTreeMap<String, QuotaBucket>>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    Ok(value.as_object().map(|buckets| {
+        buckets
+            .iter()
+            .map(|(name, bucket)| {
+                (
+                    name.clone(),
+                    serde_json::from_value(bucket.clone()).unwrap_or_default(),
+                )
+            })
+            .collect()
+    }))
 }
 
 /// A list whose malformed entries are dropped one by one.
@@ -354,10 +406,90 @@ pub const MAX_INPUT_BYTES: usize = 1024 * 1024;
 
 impl Input {
     pub fn parse(json: &str) -> serde_json::Result<Input> {
-        serde_json::from_str(json)
+        let mut value: serde_json::Value = serde_json::from_str(json)?;
+        if let Some(object) = value.as_object_mut() {
+            let native = object.get("product").and_then(|value| value.as_str())
+                == Some("antigravity")
+                || object.get("conversation_id").is_some_and(serde_json::Value::is_string)
+                || object.get("terminal_width").is_some_and(serde_json::Value::is_u64)
+                || object.get("quota").is_some_and(serde_json::Value::is_object);
+            if native {
+                object.insert("product".into(), serde_json::json!("antigravity"));
+                for (target, source) in [
+                    ("session_id", "conversation_id"),
+                    ("session_name", "conversation_title"),
+                ] {
+                    if object
+                        .get(target)
+                        .and_then(|value| value.as_str())
+                        .is_none_or(str::is_empty)
+                        && let Some(value) = object
+                            .get(source)
+                            .and_then(|value| value.as_str())
+                            .map(str::to_owned)
+                    {
+                        object.insert(target.into(), serde_json::Value::String(value));
+                    }
+                }
+                if object.get("effort").is_none_or(serde_json::Value::is_null)
+                    && let Some(effort) = object
+                        .get("model")
+                        .and_then(|model| model.get("effort"))
+                        .and_then(|value| value.as_str())
+                        .map(str::to_owned)
+                {
+                    object.insert("effort".into(), serde_json::json!({"level": effort}));
+                }
+                if let Some(cost) = object.get_mut("cost").and_then(|cost| cost.as_object_mut())
+                    && let Some(total) = cost.remove("total_usd")
+                {
+                    cost.insert("total_cost_usd".into(), total);
+                }
+            }
+        }
+        serde_json::from_value(value)
+    }
+
+    pub fn is_antigravity(&self) -> bool {
+        self.product.as_deref() == Some("antigravity")
+    }
+
+    pub fn native_context_ratio(&self) -> Option<f64> {
+        let context = self.context_window.as_ref()?;
+        let valid = |percentage: &f64| percentage.is_finite() && (0.0..=100.0).contains(percentage);
+        context
+            .used_percentage
+            .filter(valid)
+            .map(|percentage| percentage / 100.0)
+            .or_else(|| {
+                context
+                    .remaining_percentage
+                    .filter(valid)
+                    .map(|percentage| 1.0 - percentage / 100.0)
+            })
+    }
+
+    /// Persist only the typed display contract, never email or unknown fields.
+    pub fn replay_value(&self) -> Option<serde_json::Value> {
+        let mut snapshot = serde_json::to_value(self).ok()?;
+        if let Some(buckets) = snapshot.get_mut("quota").and_then(serde_json::Value::as_object_mut) {
+            let names: Vec<String> = buckets.keys()
+                .filter(|name| name.contains('@') || name.chars().any(char::is_control))
+                .cloned().collect();
+            for name in names {
+                if let Some(value) = buckets.remove(&name) {
+                    let identifier = format!("bucket-{}", crate::state::file_key(&name));
+                    buckets.insert(identifier, value);
+                }
+            }
+        }
+        Some(snapshot)
     }
 
     pub fn cc_version(&self) -> Option<Version> {
+        if self.is_antigravity() {
+            return None;
+        }
         self.version.as_deref().and_then(Version::parse)
     }
 
