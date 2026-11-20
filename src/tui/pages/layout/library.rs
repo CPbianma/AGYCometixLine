@@ -35,6 +35,8 @@ pub enum Avail {
     Needs(Version),
     /// It describes a background task, so only the subagent line has it.
     TaskOnly,
+    /// The Antigravity status-line protocol does not expose this metric.
+    HostUnsupported,
 }
 
 fn task_only(meta: &MetricMeta) -> bool {
@@ -42,6 +44,9 @@ fn task_only(meta: &MetricMeta) -> bool {
 }
 
 pub fn avail(meta: &MetricMeta, target: Target, cc: Option<Version>) -> Avail {
+    if cc.is_none() && !metrics::antigravity_supported(meta.id) {
+        return Avail::HostUnsupported;
+    }
     if let (Some(min), Some(cc)) = (meta.min_cc, cc)
         && cc < min
     {
@@ -323,11 +328,14 @@ impl Library {
                 Avail::Yes => m.meta.summary.to_string(),
                 Avail::Needs(v) => format!("Needs Claude Code {v}"),
                 Avail::TaskOnly => "Only on the subagent line (t)".into(),
+                Avail::HostUnsupported => {
+                    "Not exposed by the Antigravity status-line protocol".into()
+                }
             };
             text.push(Line::styled(note, ui::muted()));
         }
         let about_rows = about.height as usize;
-        let legend = Line::styled("S history · 251+ CC · sub task", ui::muted());
+        let legend = Line::styled("S history · unavailable fields stay hidden", ui::muted());
         let mut p = text;
         while p.len() + 1 < about_rows {
             p.push(Line::raw(""));
@@ -376,10 +384,19 @@ mod tests {
             avail(&cache.meta, Target::Status, old),
             Avail::Needs(Version::parse("2.1.251").unwrap())
         );
-        assert_eq!(avail(&cache.meta, Target::Status, None), Avail::Yes);
+        assert_eq!(
+            avail(&cache.meta, Target::Status, None),
+            Avail::HostUnsupported
+        );
         let task = metrics::find("task.name").unwrap();
-        assert_eq!(avail(&task.meta, Target::Status, None), Avail::TaskOnly);
-        assert_eq!(avail(&task.meta, Target::Subagent, None), Avail::Yes);
+        assert_eq!(
+            avail(&task.meta, Target::Status, None),
+            Avail::HostUnsupported
+        );
+        assert_eq!(
+            avail(&task.meta, Target::Subagent, None),
+            Avail::HostUnsupported
+        );
         assert_eq!(marks(&cache.meta), "251+");
         assert_eq!(marks(&metrics::find("cost.rate").unwrap().meta), "S");
     }

@@ -1,10 +1,12 @@
 pub mod cc_settings;
 pub mod cli;
+#[cfg(test)]
 pub mod companion;
 pub mod config;
 pub mod env;
 pub mod git;
 pub mod input;
+pub mod integration;
 pub mod layout;
 pub mod metrics;
 pub mod models;

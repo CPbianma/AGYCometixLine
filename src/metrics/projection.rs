@@ -383,7 +383,11 @@ mod tests {
                 FixedOffset::east_opt(0).unwrap(),
                 GlyphTier::Unicode,
             )
-            .with_state(state);
+            .with_state(state)
+            .with_compact(AutoCompact {
+                enabled: true,
+                ..AutoCompact::default()
+            });
             read(find("context.to_compact").unwrap(), &ctx, &Options::new())
         };
         let r = with(&|c| c.threshold = Some(150_000)).unwrap();
@@ -396,7 +400,10 @@ mod tests {
 
     #[test]
     fn compact_point_follows_claude_code() {
-        let ac = AutoCompact::default();
+        let ac = AutoCompact {
+            enabled: true,
+            ..AutoCompact::default()
+        };
         assert_eq!(compact_point(200_000, &ac), Some(167_000));
         assert_eq!(compact_point(1_000_000, &ac), Some(967_000));
         let capped = AutoCompact {

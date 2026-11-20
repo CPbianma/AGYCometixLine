@@ -410,9 +410,15 @@ impl Input {
         if let Some(object) = value.as_object_mut() {
             let native = object.get("product").and_then(|value| value.as_str())
                 == Some("antigravity")
-                || object.get("conversation_id").is_some_and(serde_json::Value::is_string)
-                || object.get("terminal_width").is_some_and(serde_json::Value::is_u64)
-                || object.get("quota").is_some_and(serde_json::Value::is_object);
+                || object
+                    .get("conversation_id")
+                    .is_some_and(serde_json::Value::is_string)
+                || object
+                    .get("terminal_width")
+                    .is_some_and(serde_json::Value::is_u64)
+                || object
+                    .get("quota")
+                    .is_some_and(serde_json::Value::is_object);
             if native {
                 object.insert("product".into(), serde_json::json!("antigravity"));
                 for (target, source) in [
@@ -472,10 +478,15 @@ impl Input {
     /// Persist only the typed display contract, never email or unknown fields.
     pub fn replay_value(&self) -> Option<serde_json::Value> {
         let mut snapshot = serde_json::to_value(self).ok()?;
-        if let Some(buckets) = snapshot.get_mut("quota").and_then(serde_json::Value::as_object_mut) {
-            let names: Vec<String> = buckets.keys()
+        if let Some(buckets) = snapshot
+            .get_mut("quota")
+            .and_then(serde_json::Value::as_object_mut)
+        {
+            let names: Vec<String> = buckets
+                .keys()
                 .filter(|name| name.contains('@') || name.chars().any(char::is_control))
-                .cloned().collect();
+                .cloned()
+                .collect();
             for name in names {
                 if let Some(value) = buckets.remove(&name) {
                     let identifier = format!("bucket-{}", crate::state::file_key(&name));

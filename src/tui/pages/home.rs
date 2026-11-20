@@ -3,13 +3,10 @@
 //! session.
 
 use super::{Cx, Env, Outcome, Page, PageId};
-use crate::cc_settings::{self, Settings};
 use crate::config::LoadNote;
-use crate::state::update;
 use crate::tui::dialogs::SettingsDiff;
 use crate::tui::doc::Doc;
 use crate::tui::ui;
-use crate::version::MIN_SUPPORTED;
 use ratatui::Frame;
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 use ratatui::layout::{Constraint, Layout, Rect};
@@ -27,13 +24,10 @@ const START: [(&str, Go); 6] = [
     ("Open composer", Go::Page(PageId::Layout)),
     ("Browse presets", Go::Page(PageId::Presets)),
     ("Model registry", Go::Page(PageId::Models)),
-    ("Claude Code integration", Go::Page(PageId::Claude)),
+    ("Antigravity integration", Go::Page(PageId::Claude)),
     ("First-run setup", Go::Setup),
     ("Quit", Go::Quit),
 ];
-const UPGRADE: &str = "npm update -g @cometix/ccline";
-/// Recommended `refreshInterval`, in seconds.
-const REFRESH: u64 = 2;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Mark {
@@ -71,27 +65,16 @@ pub struct Home {
 
 fn checks(cx: &Cx) -> Vec<Check> {
     let mut out = Vec::new();
-    out.push(match cx.env.cc_version() {
-        Some(v) if v >= MIN_SUPPORTED => check(Mark::Ok, format!("Claude Code {v}")),
-        Some(v) => check(
-            Mark::Warn,
-            format!("Claude Code {v} is older than {MIN_SUPPORTED}"),
-        ),
-        None => check(Mark::Info, "Claude Code version not seen yet"),
+    out.push(match cx.env.agy_version() {
+        Some(version) => check(Mark::Ok, format!("Antigravity CLI {version}")),
+        None => check(Mark::Info, "AGY CLI version not seen yet"),
     });
-    match Settings::load(&cx.env.settings) {
-        Err(e) => out.push(check(Mark::Warn, e)),
-        Ok(s) => match s.status_line() {
-            Some(l) if cc_settings::is_ccline(&l.command) => {
-                out.push(check(Mark::Ok, "statusLine runs ccline"));
-                if l.refresh_interval.is_none() {
-                    out.push(check(Mark::Info, "refreshInterval not set").fix("i", "set 2s"));
-                }
-            }
-            Some(_) => out
-                .push(check(Mark::Warn, "statusLine runs another command").fix("s", "use ccline")),
-            None => out.push(check(Mark::Warn, "statusLine not set").fix("s", "connect")),
-        },
+    match cx.env.installation(cx.doc).status() {
+        Err(error) => out.push(check(Mark::Warn, error)),
+        Ok(status) if status.state == "installed" => {
+            out.push(check(Mark::Ok, "statusLine runs agyline"))
+        }
+        Ok(status) => out.push(check(Mark::Warn, status.state).fix("s", "connect")),
     }
     out.push(match &cx.doc.note {
         LoadNote::Fine => check(Mark::Ok, "config.toml valid"),
@@ -119,11 +102,6 @@ fn checks(cx: &Cx) -> Vec<Check> {
             }
         }
     });
-    if let Some(v) = &cx.env.update.latest
-        && update::is_newer(v, update::CURRENT)
-    {
-        out.push(check(Mark::Info, format!("ccline {v} available")).fix("u", "copy upgrade"));
-    }
     out
 }
 
@@ -155,25 +133,14 @@ fn health_line(c: &Check, width: usize) -> Line<'static> {
     Line::from(spans)
 }
 
-/// Point `statusLine` at ccline, or give it a refresh interval, after
-/// showing the change.
-fn change_settings(env: &Env, refresh: bool) -> Outcome {
-    let base = match Settings::load(&env.settings) {
-        Ok(s) => s,
-        Err(e) => return Outcome::Toast(e),
-    };
-    let mut line = base.status_line().unwrap_or_default();
-    if refresh {
-        line.refresh_interval = Some(REFRESH);
-    } else {
-        line.command = cc_settings::suggested_command();
+fn change_settings(env: &Env, doc: &Doc) -> Outcome {
+    let installation = env.installation(doc);
+    match installation.preview_install() {
+        Ok((base, draft)) => {
+            Outcome::Open(Box::new(SettingsDiff::install(installation, base, draft)))
+        }
+        Err(error) => Outcome::Toast(error),
     }
-    let mut draft = base.clone();
-    draft.set_status_line(Some(&line));
-    if !draft.differs(&base) {
-        return Outcome::Toast("Already set".into());
-    }
-    Outcome::Open(Box::new(SettingsDiff::new(base, draft)))
 }
 
 impl Home {
@@ -213,7 +180,7 @@ impl Page for Home {
         .areas(area);
         f.render_widget(
             Paragraph::new(Line::styled(
-                "  ccline — compose your Claude Code status line",
+                "  agyline — compose your Antigravity CLI status line",
                 ui::strong(),
             )),
             head,
@@ -243,7 +210,7 @@ impl Page for Home {
         Self::render_now(f, now, lines, title);
     }
 
-    fn handle(&mut self, key: KeyEvent, _: &mut Doc, env: &Env) -> Outcome {
+    fn handle(&mut self, key: KeyEvent, doc: &mut Doc, env: &Env) -> Outcome {
         match key.code {
             // Up from the first entry goes to the tab row.
             KeyCode::Up if self.selected == 0 => Outcome::Ignored,
@@ -257,15 +224,14 @@ impl Page for Home {
             }
             KeyCode::Enter => match START[self.selected].1 {
                 Go::Page(p) => Outcome::Goto(p),
-                Go::Setup => Outcome::Open(Box::new(crate::tui::dialogs::Setup::new(
+                Go::Setup => Outcome::Open(Box::new(crate::tui::dialogs::Setup::with_home(
                     env.settings.clone(),
+                    env.installation(doc).home,
                 ))),
                 Go::Quit => Outcome::Quit,
             },
-            KeyCode::Char('s') => change_settings(env, false),
-            KeyCode::Char('i') => change_settings(env, true),
+            KeyCode::Char('s') => change_settings(env, doc),
             KeyCode::Char('m') => Outcome::Goto(PageId::Models),
-            KeyCode::Char('u') => Outcome::Copy(UPGRADE.into()),
             _ => Outcome::Ignored,
         }
     }
@@ -286,6 +252,7 @@ impl Page for Home {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::cc_settings::Settings;
     use crate::tui::app::App;
     use crate::tui::app::tests::{env, key, screen};
     use crate::tui::doc::tests::temp_paths;
@@ -304,7 +271,7 @@ mod tests {
         let s = screen(&mut app, 112, 33);
         for text in [
             "Health",
-            "statusLine not set",
+            "not installed",
             "s connect",
             "Your status line now",
             "a sample session",
@@ -316,14 +283,10 @@ mod tests {
         assert!(screen(&mut app, 112, 33).contains("Change "));
         app.handle_key(key(KeyCode::Char('y')));
         let s = screen(&mut app, 112, 33);
-        assert!(
-            s.contains("statusLine runs ccline") && s.contains("i set 2s"),
-            "{s}"
-        );
-        app.handle_key(key(KeyCode::Char('i')));
-        app.handle_key(key(KeyCode::Char('y')));
+        assert!(s.contains("statusLine runs agyline"), "{s}");
         let line = Settings::load(&settings).unwrap().status_line().unwrap();
-        assert_eq!(line.refresh_interval, Some(REFRESH));
+        assert_eq!(line.enabled, Some(true));
+        assert!(dir.join("installation.json").is_file());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

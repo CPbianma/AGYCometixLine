@@ -40,9 +40,9 @@ pub struct App {
     pub tabs_focused: bool,
     /// When the app started, for the name's glint.
     started: Instant,
-    /// Whether the name's rainbow takes Claude Code's truecolor values.
+    /// Whether the name's rainbow uses terminal truecolor values.
     truecolor: bool,
-    /// Whether the glint moves; still when Claude Code prefers reduced motion.
+    /// Whether the glint moves; still when the host prefers reduced motion.
     motion: bool,
 }
 
@@ -101,7 +101,7 @@ impl App {
         let area = f.area();
         if area.width < MIN_SIZE.0 || area.height < MIN_SIZE.1 {
             let msg = format!(
-                "ccline needs a terminal of at least {}×{} (this one is {}×{}).",
+                "agyline needs a terminal of at least {}×{} (this one is {}×{}).",
                 MIN_SIZE.0, MIN_SIZE.1, area.width, area.height
             );
             f.render_widget(Paragraph::new(msg), area);
@@ -115,8 +115,8 @@ impl App {
 
         let cc = self
             .env
-            .cc_version()
-            .map(|v| format!("CC {v} · "))
+            .agy_version()
+            .map(|version| format!("AGY {version} · "))
             .unwrap_or_default();
         let star = if self.doc.dirty() { "* " } else { "" };
         let frame = Block::bordered().border_style(ui::muted()).title_top(
@@ -212,7 +212,13 @@ impl App {
         let width = width as usize;
         let mut spans = vec![Span::raw(" ")];
         let glint = self.motion.then(|| ui::glint(self.started.elapsed()));
-        spans.extend(ui::brand(self.truecolor, glint));
+        // Keep the upstream glint palette while showing this fork's name.
+        let palette = ui::brand(self.truecolor, glint);
+        let mut styles = palette.iter().filter(|span| span.content.as_ref() != " ");
+        for character in "agyline".chars() {
+            let style = styles.next().map(|span| span.style).unwrap_or_default();
+            spans.push(Span::styled(character.to_string(), style));
+        }
         let name: usize = spans.iter().map(Span::width).sum();
 
         let mut tabs = Vec::new();
@@ -376,11 +382,13 @@ impl App {
 
     /// The first-run setup, over whatever is showing.
     pub fn open_setup(&mut self) {
-        self.dialogs
-            .push(Box::new(dialogs::Setup::new(self.env.settings.clone())));
+        self.dialogs.push(Box::new(dialogs::Setup::with_home(
+            self.env.settings.clone(),
+            self.env.installation(&self.doc).home,
+        )));
     }
 
-    /// Changes to Claude Code's settings a page drafted and didn't write.
+    /// Changes to AGY settings a page drafted and didn't write.
     fn unapplied(&self) -> Option<dialogs::SettingsDiff> {
         self.pages.iter().find_map(|p| p.unapplied())
     }
@@ -614,7 +622,7 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn the_glint_keeps_still_when_claude_code_prefers_reduced_motion() {
+    fn the_glint_keeps_still_when_the_host_prefers_reduced_motion() {
         let (dir, paths) = temp_paths("app-motion");
         let app = App::new(Doc::open(paths.clone()), env());
         assert!(
@@ -638,17 +646,17 @@ pub(crate) mod tests {
         };
         let span = |text: &str| {
             let start = text.find(" Home ").unwrap();
-            let end = text.find(" Claude Code ").unwrap() + " Claude Code ".len();
+            let end = text.find(" Antigravity ").unwrap() + " Antigravity ".len();
             (start, end)
         };
         // Room to spare: the tabs sit in the middle of the row.
         let wide = row(123);
         let (start, end) = span(&wide);
         assert!(start.abs_diff(123 - end) <= 1, "{wide:?}");
-        assert!(wide.starts_with(" CCometixLine") && !wide.contains("help"));
+        assert!(wide.starts_with(" agyline") && !wide.contains("help"));
         // The smallest frame: they keep clear of the name.
         let narrow = row(MIN_SIZE.0 - 2);
-        assert!(span(&narrow).0 >= " CCometixLine".len() + 2, "{narrow:?}");
+        assert!(span(&narrow).0 >= " agyline".len() + 2, "{narrow:?}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
@@ -658,9 +666,7 @@ pub(crate) mod tests {
         let mut app = App::new(Doc::open(paths), env());
         let home = screen(&mut app, 100, 30);
         assert!(
-            home.contains(" CCometixLine ")
-                && home.contains(" Home ")
-                && !home.contains("[1 Home]"),
+            home.contains(" agyline ") && home.contains(" Home ") && !home.contains("[1 Home]"),
             "{home}"
         );
         assert!(
@@ -751,7 +757,8 @@ pub(crate) mod tests {
         app.handle_key(key(KeyCode::Char(']')));
         app.handle_key(key(KeyCode::Char('-')));
         let s = screen(&mut app, 100, 30);
-        assert!(s.contains("‹fresh›") && s.contains("‹94›"), "{s}");
+        let next_scenario = format!("‹{}›", crate::scenarios::SCENARIOS[1].name);
+        assert!(s.contains(&next_scenario) && s.contains("‹94›"), "{s}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

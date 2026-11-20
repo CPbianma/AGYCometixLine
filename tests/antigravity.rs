@@ -86,6 +86,32 @@ fn normalizes_native_conversation_and_nested_effort() {
 }
 
 #[test]
+fn native_display_name_does_not_repeat_its_effort_suffix() {
+    let input = payload(serde_json::json!({"model": {
+        "id": "Gemini 4 Neon (XHigh)", "display_name": "Gemini 4 Neon (XHigh)", "effort": "xhigh"
+    }}));
+    let model = reading(&input, "model", Options::new()).unwrap();
+    assert_eq!(model.get("name").unwrap().text, "Gemini 4 Neon");
+    assert_eq!(model.get("effort").unwrap().text, "xHigh");
+}
+
+#[test]
+fn narrow_quota_preserves_the_remaining_value_for_long_native_bucket_ids() {
+    let input = payload(serde_json::json!({"quota": {
+        "gemini-argon-wtu-weekly": {"remaining_fraction": 0.75}
+    }}));
+    for skin in [
+        SkinKind::Plain,
+        SkinKind::Bracket,
+        SkinKind::Pill,
+        SkinKind::Powerline,
+    ] {
+        let output = render(&input, skin, 32);
+        assert!(output.contains("75% left"), "{skin:?}: {output}");
+    }
+}
+
+#[test]
 fn native_versions_are_not_compared_with_claude_versions() {
     let input = payload(serde_json::json!({}));
     let output = render(&input, SkinKind::Plain, 100);
@@ -312,17 +338,27 @@ fn replay_round_trip_does_not_turn_legacy_null_fields_into_native_markers() {
 
 #[test]
 fn replay_redacts_email_like_dynamic_bucket_identifiers() {
-    let input = payload(serde_json::json!({"quota": {"private@example.invalid": {"remaining_fraction": 0.25}}}));
+    let input = payload(
+        serde_json::json!({"quota": {"private@example.invalid": {"remaining_fraction": 0.25}}}),
+    );
     let snapshot = input.replay_value().unwrap().to_string();
     assert!(!snapshot.contains("private@example.invalid"));
-    assert_eq!(input.quota.as_ref().unwrap()["private@example.invalid"].remaining_fraction, Some(0.25));
+    assert_eq!(
+        input.quota.as_ref().unwrap()["private@example.invalid"].remaining_fraction,
+        Some(0.25)
+    );
     let replay = Input::parse(&snapshot).unwrap();
     assert_eq!(replay.quota.as_ref().unwrap().len(), 1);
 }
 
 #[test]
 fn native_history_never_records_claude_fixed_window_fields() {
-    let input = payload(serde_json::json!({"rate_limits": {"five_hour": {"used_percentage": 30, "resets_at": 1795200000}, "seven_day": {"used_percentage": 50, "resets_at": 1795200000}}}));
+    let input = payload(
+        serde_json::json!({"rate_limits": {"five_hour": {"used_percentage": 30, "resets_at": 1795200000}, "seven_day": {"used_percentage": 50, "resets_at": 1795200000}}}),
+    );
     let sample = ccometixline::state::Sample::from_input(&input, NOW);
-    assert_eq!((sample.h5, sample.h5_reset, sample.d7, sample.d7_reset), (None, None, None, None));
+    assert_eq!(
+        (sample.h5, sample.h5_reset, sample.d7, sample.d7_reset),
+        (None, None, None, None)
+    );
 }

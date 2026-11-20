@@ -371,48 +371,44 @@ mod tests {
             "Minimal",
             "Dashboard",
             "Budget",
-            "Cache-aware",
+            "Session",
             "Focus",
         ] {
             assert!(s.contains(name), "{name}: {s}");
         }
         assert!(s.contains("✓ in use"), "the default config is cometix: {s}");
-        assert!(s.contains("Classic look"));
+        assert!(s.contains("Classic two-row look"));
 
         // Right then down: from cometix to the card under minimal. The
         // preview bar shows the card under the cursor, nothing applied yet.
         app.handle_key(key(KeyCode::Right));
         let s = screen(&mut app, 112, 33);
-        assert!(s.contains("Model, context, cache and cost"));
+        assert!(s.contains("Model, context and remaining quota"));
         assert!(s.contains("Preview · minimal · enter applies"), "{s}");
         assert!(!app.doc.dirty());
         app.handle_key(key(KeyCode::Down));
         app.handle_key(key(KeyCode::Char('s')));
-        assert_eq!(app.doc.config.lines.len(), 1, "style only keeps the layout");
+        assert_eq!(app.doc.config.lines.len(), 2, "style only keeps the layout");
         assert_ne!(app.doc.config.palette, "terminal");
         let s = screen(&mut app, 112, 33);
         assert!(s.contains("✓ in use, modified"), "{s}");
         app.handle_key(ctrl('z'));
         assert!(!app.doc.dirty());
 
-        // Filter down to cache presets and apply all of it.
-        for _ in 0..6 {
+        // Filter down to quota presets and apply a complete native layout.
+        for _ in 0..5 {
             app.handle_key(key(KeyCode::Tab));
         }
         let s = screen(&mut app, 112, 33);
-        // Every preset shows the cache; the tag marks the one about it.
         assert!(
-            s.contains("● cache")
-                && s.contains("Cache-aware")
-                && !s.contains("Classic look")
-                && !s.contains("Minimal"),
+            s.contains("● quota") && s.contains("Budget") && !s.contains("Minimal"),
             "{s}"
         );
-        assert!(s.contains("Preview · cache-aware"), "{s}");
+        app.handle_key(key(KeyCode::Right));
         app.handle_key(key(KeyCode::Enter));
-        assert_eq!(app.doc.config.preset.as_deref(), Some("cache-aware"));
-        assert_eq!(app.doc.config.lines.len(), 2);
-        assert!(screen(&mut app, 112, 33).contains("Applied cache-aware"));
+        assert_eq!(app.doc.config.preset.as_deref(), Some("dashboard"));
+        assert_eq!(app.doc.config.lines.len(), 3);
+        assert!(screen(&mut app, 112, 33).contains("Applied dashboard"));
 
         // Up from the first row reaches the tab row.
         app.handle_key(key(KeyCode::Up));
@@ -454,7 +450,10 @@ mod tests {
         }
         typed(&mut app, "Work Laptop");
         let s = screen(&mut app, 112, 33);
-        assert!(s.contains("presets/work-laptop.toml"), "{s}");
+        assert!(
+            s.replace('\\', "/").contains("presets/work-laptop.toml"),
+            "{s}"
+        );
         app.handle_key(key(KeyCode::Tab));
         typed(&mut app, "Quota first");
         app.handle_key(key(KeyCode::Enter));
@@ -465,7 +464,7 @@ mod tests {
         // It comes first, selected, in use, with its summary below.
         assert!(s.contains("Work-laptop") && s.contains("✓ in use"), "{s}");
         assert!(
-            s.contains("— Quota first") && s.contains("mine · 1 line"),
+            s.contains("— Quota first") && s.contains("mine · 2 lines"),
             "{s}"
         );
         app.handle_key(key(KeyCode::Char('?')));

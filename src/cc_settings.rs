@@ -1,20 +1,18 @@
-//! Claude Code's user settings (`settings.json`): reading the status line
+//! Antigravity CLI user settings (`settings.json`): reading the status line
 //! settings, and changing them with a diff first, a backup and an atomic
-//! write. Keys keep their order and settings ccline doesn't know are left
+//! write. Keys keep their order and settings agyline doesn't know are left
 //! as they are.
 
 use serde_json::{Map, Value};
 use std::path::{Path, PathBuf};
 
-/// `statusLine` as Claude Code reads it (checked against 2.1.285).
+/// The supported Antigravity CLI `statusLine` fields.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct StatusLine {
     pub command: String,
     pub padding: Option<u64>,
-    /// Seconds between re-runs besides the event-driven ones; at least 1.
-    pub refresh_interval: Option<u64>,
-    /// Hide Claude Code's own `-- INSERT --` line.
-    pub hide_vim_mode_indicator: Option<bool>,
+    pub enabled: Option<bool>,
+    pub stack_with_default: Option<bool>,
 }
 
 #[derive(Debug)]
@@ -51,48 +49,31 @@ pub struct Settings {
     value: Value,
 }
 
-/// Keys of `statusLine` in the order Claude Code documents them.
+/// Only these host fields may be generated. Unknown existing keys survive.
 const STATUS_KEYS: [&str; 5] = [
     "type",
     "command",
     "padding",
-    "refreshInterval",
-    "hideVimModeIndicator",
+    "enabled",
+    "stack_with_default",
 ];
 
-/// Whether `command` runs ccline.
+/// Internal compatibility helper; only recognizes agyline commands.
 pub fn is_ccline(command: &str) -> bool {
-    command.contains("ccline") || command.contains("ccometixline")
+    command.contains("agyline")
 }
 
-/// What to put in `statusLine.command`: the installed binary under
-/// `~/.claude/ccline` when present, else this executable.
+/// Stable installation command, never a build-directory executable.
 pub fn suggested_command() -> String {
-    let name = if cfg!(windows) {
-        "ccline.exe"
-    } else {
-        "ccline"
-    };
-    let installed = crate::paths::claude_dir().join("ccline").join(name);
-    let path = if installed.exists() {
-        installed
-    } else {
-        std::env::current_exe().unwrap_or(installed)
-    };
-    let shown = path.to_string_lossy().into_owned();
-    match dirs::home_dir() {
-        Some(home) if !cfg!(windows) => match path.strip_prefix(&home) {
-            Ok(rest) => format!("~/{}", rest.to_string_lossy()),
-            Err(_) => shown,
-        },
-        _ => shown,
-    }
+    crate::integration::Installation::user()
+        .command()
+        .unwrap_or_else(|_| "agyline".into())
 }
 
 impl Settings {
-    /// `settings.json` in Claude Code's config directory.
+    /// `settings.json` in the AGY config directory.
     pub fn user_path() -> PathBuf {
-        crate::paths::claude_dir().join("settings.json")
+        crate::paths::agy_dir().join("settings.json")
     }
 
     pub fn load(path: &Path) -> Result<Settings, String> {
@@ -102,13 +83,14 @@ impl Settings {
             Err(e) => return Err(e.to_string()),
         };
         let value = match text.as_deref().map(str::trim) {
-            None | Some("") => Value::Object(Map::new()),
+            None => Value::Object(Map::new()),
             Some(t) => match serde_json::from_str::<Value>(t) {
                 Ok(v @ Value::Object(_)) => v,
                 Ok(_) => return Err("settings.json isn't a JSON object".into()),
                 Err(e) => return Err(format!("settings.json isn't plain JSON: {e}")),
             },
         };
+        validate_status_line(value.get("statusLine"))?;
         Ok(Settings {
             path: path.to_path_buf(),
             text,
@@ -144,12 +126,12 @@ impl Settings {
         Some(StatusLine {
             command: s.get("command")?.as_str()?.to_string(),
             padding: s.get("padding").and_then(Value::as_u64),
-            refresh_interval: s.get("refreshInterval").and_then(Value::as_u64),
-            hide_vim_mode_indicator: s.get("hideVimModeIndicator").and_then(Value::as_bool),
+            enabled: s.get("enabled").and_then(Value::as_bool),
+            stack_with_default: s.get("stack_with_default").and_then(Value::as_bool),
         })
     }
 
-    /// `prefersReducedMotion`, which stills Claude Code's own animations.
+    /// The optional host accessibility preference.
     pub fn prefers_reduced_motion(&self) -> bool {
         self.object()
             .get("prefersReducedMotion")
@@ -157,12 +139,23 @@ impl Settings {
             .unwrap_or(false)
     }
 
-    pub fn subagent_command(&self) -> Option<String> {
-        let s = self.object().get("subagentStatusLine")?;
-        Some(s.get("command")?.as_str()?.to_string())
+    /// Exact status line value for narrow, lossless installation recovery.
+    pub fn status_line_value(&self) -> Option<&Value> {
+        self.object().get("statusLine")
     }
 
-    /// Replace `statusLine`, keeping keys ccline doesn't know.
+    pub fn set_status_line_value(&mut self, value: Option<Value>) {
+        match value {
+            Some(value) => {
+                self.object_mut().insert("statusLine".into(), value);
+            }
+            None => {
+                self.object_mut().remove("statusLine");
+            }
+        }
+    }
+
+    /// Replace `statusLine`, keeping keys agyline doesn't know.
     pub fn set_status_line(&mut self, line: Option<&StatusLine>) {
         let Some(line) = line else {
             self.object_mut().remove("statusLine");
@@ -176,8 +169,8 @@ impl Settings {
             Some(Value::from("command")),
             Some(Value::from(line.command.clone())),
             line.padding.map(Value::from),
-            line.refresh_interval.map(|n| Value::from(n.max(1))),
-            line.hide_vim_mode_indicator.map(Value::from),
+            line.enabled.map(Value::from),
+            line.stack_with_default.map(Value::from),
         ];
         for (key, value) in STATUS_KEYS.iter().zip(values) {
             match value {
@@ -193,22 +186,7 @@ impl Settings {
             .insert("statusLine".into(), Value::Object(obj));
     }
 
-    pub fn set_subagent(&mut self, command: Option<&str>) {
-        match command {
-            Some(c) => {
-                let mut obj = Map::new();
-                obj.insert("type".into(), Value::from("command"));
-                obj.insert("command".into(), Value::from(c));
-                self.object_mut()
-                    .insert("subagentStatusLine".into(), Value::Object(obj));
-            }
-            None => {
-                self.object_mut().remove("subagentStatusLine");
-            }
-        }
-    }
-
-    /// The file as ccline writes it: two-space JSON, like Claude Code.
+    /// Two-space JSON, preserving the order of existing object keys.
     pub fn render(&self) -> String {
         let mut s = serde_json::to_string_pretty(&self.value).unwrap_or_default();
         s.push('\n');
@@ -260,14 +238,24 @@ impl Settings {
 
     fn backup_path(&self) -> PathBuf {
         let mut name = self.path.file_name().unwrap_or_default().to_os_string();
-        name.push(".ccline-bak");
+        name.push(format!(
+            ".agyline-bak-{}-{}",
+            chrono::Utc::now().timestamp_nanos_opt().unwrap_or_default(),
+            std::process::id()
+        ));
         self.path.with_file_name(name)
     }
 
     /// Write the settings unless the file changed since `base` was read,
-    /// keeping the old file as `settings.json.ccline-bak`. A symlinked file
+    /// keeping the old file as a unique `settings.json.agyline-bak-*`. A symlinked file
     /// is written through the link. Returns the backup's path, if any.
     pub fn save(&self, base: &Settings) -> Result<Option<PathBuf>, SaveError> {
+        validate_status_line(self.status_line_value()).map_err(|error| {
+            SaveError::Io(std::io::Error::new(std::io::ErrorKind::InvalidInput, error))
+        })?;
+        if self.path != base.path {
+            return Err(SaveError::Changed);
+        }
         let on_disk = match std::fs::read_to_string(&self.path) {
             Ok(t) => Some(t),
             Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
@@ -279,15 +267,48 @@ impl Settings {
         let backup = match &base.text {
             Some(text) => {
                 let path = self.backup_path();
-                crate::paths::write_atomic(&path, text).map_err(SaveError::Io)?;
+                use std::io::Write;
+                let mut file = std::fs::OpenOptions::new()
+                    .write(true)
+                    .create_new(true)
+                    .open(&path)
+                    .map_err(SaveError::Io)?;
+                file.write_all(text.as_bytes()).map_err(SaveError::Io)?;
+                file.sync_all().map_err(SaveError::Io)?;
                 Some(path)
             }
             None => None,
         };
+        // The backup may take time; reject edits made while it was written.
+        if base.stale() {
+            return Err(SaveError::Changed);
+        }
         let target = std::fs::canonicalize(&self.path).unwrap_or_else(|_| self.path.clone());
         crate::paths::write_atomic(&target, &self.render()).map_err(SaveError::Io)?;
         Ok(backup)
     }
+}
+
+pub(crate) fn validate_status_line(value: Option<&Value>) -> Result<(), String> {
+    let Some(value) = value else {
+        return Ok(());
+    };
+    let object = value
+        .as_object()
+        .ok_or("statusLine must be a JSON object")?;
+    for (key, value) in object {
+        let valid = match key.as_str() {
+            "type" => value.as_str() == Some("command"),
+            "command" => value.is_string(),
+            "padding" => value.as_u64().is_some(),
+            "enabled" | "stack_with_default" => value.is_boolean(),
+            _ => true,
+        };
+        if !valid {
+            return Err(format!("statusLine.{key} has an invalid type"));
+        }
+    }
+    Ok(())
 }
 
 /// A line diff of `a` into `b` (longest common subsequence).
@@ -356,42 +377,29 @@ mod tests {
 
         let mut s = base.clone();
         s.set_status_line(Some(&StatusLine {
-            command: "~/.claude/ccline/ccline".into(),
+            command: "'/stable home/agyline'".into(),
             padding: Some(0),
-            refresh_interval: Some(2),
-            hide_vim_mode_indicator: None,
+            enabled: Some(true),
+            stack_with_default: Some(false),
         }));
-        s.set_subagent(Some("~/.claude/ccline/ccline"));
         let text = s.render();
-        let keys: Vec<usize> = [
-            "\"model\"",
-            "\"statusLine\"",
-            "\"env\"",
-            "\"subagentStatusLine\"",
-        ]
-        .iter()
-        .map(|k| text.find(k).unwrap())
-        .collect();
+        let keys: Vec<usize> = ["\"model\"", "\"statusLine\"", "\"env\""]
+            .iter()
+            .map(|k| text.find(k).unwrap())
+            .collect();
         assert!(keys.windows(2).all(|w| w[0] < w[1]), "{text}");
         assert!(text.contains("\"futureKey\": true"));
-        assert_eq!(
-            s.changed_keys(&base),
-            vec!["statusLine", "subagentStatusLine"]
-        );
+        assert_eq!(s.changed_keys(&base), vec!["statusLine"]);
 
         let diff = s.diff(&base);
         assert!(diff.contains(&(Mark::Removed, "  \"command\": \"bash ~/old.sh\",".into())));
-        assert!(diff.contains(&(Mark::Added, "  \"refreshInterval\": 2".into())));
-        assert!(diff.contains(&(Mark::Added, "\"subagentStatusLine\": {".into())));
+        assert!(text.contains("\"enabled\": true"));
+        assert!(!text.contains("refreshInterval"));
 
         let backup = s.save(&base).unwrap().unwrap();
         assert_eq!(std::fs::read_to_string(&backup).unwrap(), SAMPLE);
         let again = Settings::load(&path).unwrap();
-        assert_eq!(again.status_line().unwrap().refresh_interval, Some(2));
-        assert_eq!(
-            again.subagent_command().as_deref(),
-            Some("~/.claude/ccline/ccline")
-        );
+        assert_eq!(again.status_line().unwrap().enabled, Some(true));
 
         // Saving over a file that changed since is refused.
         assert!(matches!(s.save(&base), Err(SaveError::Changed)));
@@ -406,7 +414,7 @@ mod tests {
         assert_eq!(base.status_line(), None);
         let mut s = base.clone();
         s.set_status_line(Some(&StatusLine {
-            command: "ccline".into(),
+            command: "agyline".into(),
             ..StatusLine::default()
         }));
         assert_eq!(s.save(&base).unwrap(), None);
@@ -422,7 +430,10 @@ mod tests {
             std::os::unix::fs::symlink(&real, &path).unwrap();
             let base = Settings::load(&path).unwrap();
             let mut s = base.clone();
-            s.set_subagent(Some("ccline"));
+            s.set_status_line(Some(&StatusLine {
+                command: "agyline --config".into(),
+                ..StatusLine::default()
+            }));
             s.save(&base).unwrap();
             assert!(
                 std::fs::symlink_metadata(&path)
@@ -433,7 +444,7 @@ mod tests {
             assert!(
                 std::fs::read_to_string(&real)
                     .unwrap()
-                    .contains("subagentStatusLine")
+                    .contains("agyline --config")
             );
         }
         assert!(Settings::load(&dir).is_err());
@@ -441,9 +452,9 @@ mod tests {
     }
 
     #[test]
-    fn spots_ccline_commands() {
-        assert!(is_ccline("~/.claude/ccline/ccline --subagent"));
-        assert!(is_ccline("/x/target/debug/ccometixline"));
-        assert!(!is_ccline("bash ~/.claude/statusline.sh"));
+    fn spots_agyline_commands() {
+        assert!(is_ccline("'/home/tool/agyline'"));
+        assert!(!is_ccline("/x/target/debug/ccometixline"));
+        assert!(!is_ccline("bash ~/statusline.sh"));
     }
 }

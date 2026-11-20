@@ -3,7 +3,8 @@
 use super::{Ctx, Metric, MetricMeta, OptKind, OptSpec, Options, Reading, fmt};
 use crate::input::QuotaBucket;
 use crate::render::ansi::sanitize;
-use crate::style::{Category, IconKey, Severity};
+use crate::render::width::{display_width, truncate};
+use crate::style::{Category, GlyphTier, IconKey, Severity};
 use crate::widgets::WidgetKind;
 
 fn metadata(
@@ -38,10 +39,18 @@ pub(super) fn metrics() -> Vec<Metric> {
                 widget: WidgetKind::Bar,
                 templates: [
                     "{name} {remaining}[ · reset {reset}]",
-                    "{name} {remaining}",
-                    "{name} {remaining}",
+                    "{short} {remaining}",
+                    "{tiny} {remaining}",
                 ],
-                fields: &["name", "remaining", "pct", "reset", "amount"],
+                fields: &[
+                    "name",
+                    "short",
+                    "tiny",
+                    "remaining",
+                    "pct",
+                    "reset",
+                    "amount",
+                ],
                 options: &[OptSpec {
                     key: "bucket",
                     kind: OptKind::Text,
@@ -111,7 +120,11 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
             .next()
             .map(|(name, bucket)| (name.as_str(), bucket))?,
     };
-    let mut reading = Reading::default().set("name", sanitize(name));
+    let name = sanitize(name);
+    let mut reading = Reading::default()
+        .set("name", &name)
+        .set("short", shorten(&name, 16, context.glyphs))
+        .set("tiny", shorten(&name, 10, context.glyphs));
     if bucket.disabled == Some(true) {
         return Some(
             reading
@@ -177,6 +190,18 @@ fn reset_seconds(bucket: &QuotaBucket, now: i64) -> Option<i64> {
         .and_then(|timestamp| chrono::DateTime::parse_from_rfc3339(timestamp).ok())
         .map(|timestamp| timestamp.timestamp().saturating_sub(now))
         .or(bucket.reset_in_seconds)
+}
+
+fn shorten(name: &str, columns: usize, glyphs: GlyphTier) -> String {
+    if display_width(name) <= columns {
+        return name.to_string();
+    }
+    if glyphs == GlyphTier::Ascii {
+        let prefix = truncate(name, columns.saturating_sub(2));
+        format!("{}...", prefix.trim_end_matches('…'))
+    } else {
+        truncate(name, columns)
+    }
 }
 
 fn plan(context: &Ctx, _: &Options) -> Option<Reading> {

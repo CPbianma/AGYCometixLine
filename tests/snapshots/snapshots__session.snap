@@ -1,0 +1,40 @@
+---
+source: tests/snapshots.rs
+expression: render_preset(preset.name)
+---
+── antigravity @ 60
+ Gemini 4 Neon · xHigh · 󰉋 agyline · 󰊢 main ● ↑2⏎
+ 25% · 262k                                 Pro ·  ~$0.42⏎
+󰔠 ●●●●●○○○ claude-weekly 65% left · reset 1d0h⏎
+󰔠 ●●●●●●○○ gemini-weekly 82% left · reset 5h00m⏎
+                                           idle ·  1 tasks⏎
+── antigravity @ 100
+ Gemini 4 Neon · xHigh · 󰉋 agyline · 󰊢 main ● ↑2 ·  25% · 262k                     Pro ·  ~$0.42⏎
+󰔠 ●●●●●○○○ claude-weekly 65% left · reset 1d0h · 󰔠 ●●●●●●○○ gemini-weekly 82% left · reset 5h00m⏎
+                                                                                   idle ·  1 tasks⏎
+── antigravity @ 140
+ Gemini 4 Neon · xHigh · 󰉋 agyline · 󰊢 main ● ↑2 ·  25% · 262k                                                             Pro ·  ~$0.42⏎
+󰔠 ●●●●●○○○ claude-weekly 65% left · reset 1d0h · 󰔠 ●●●●●●○○ gemini-weekly 82% left · reset 5h00m                           idle ·  1 tasks⏎
+── agy-low-quota @ 60
+ Claude Opus 5.5 · High · 󰉋 project ·  86% · 172k     Pro⏎
+󰔠 ○○○○○○○○ claude-weekly 4% left · reset 1h00m⏎
+󰔠 credits 1200 left · 󰔠 disabled-bucket disabled⏎
+󰔠 ○○○○○○○○ gemini-weekly 0% left · reset 2h00m⏎
+󰔠 unknown-bucket unknown                            working⏎
+── agy-low-quota @ 100
+ Claude Opus 5.5 · High · 󰉋 project ·  86% · 172k                                             Pro⏎
+󰔠 ○○○○○○○○ claude-weekly 4% left · reset 1h00m · 󰔠 credits 1200 left · 󰔠 disabled-bucket disabled⏎
+󰔠 ○○○○○○○○ gemini-weekly 0% left · reset 2h00m · 󰔠 unknown-bucket unknown                   working⏎
+── agy-low-quota @ 140
+ Claude Opus 5.5 · High · 󰉋 project ·  86% · 172k                                                                                     Pro⏎
+󰔠 ○○○○○○○○ claude-weekly 4% left · reset 1h00m · 󰔠 credits 1200 left · 󰔠 disabled-bucket disabled⏎
+󰔠 ○○○○○○○○ gemini-weekly 0% left · reset 2h00m · 󰔠 unknown-bucket unknown                                                           working⏎
+── agy-startup @ 60
+󰉋 project⏎
+                                               initializing⏎
+── agy-startup @ 100
+󰉋 project⏎
+                                                                                       initializing⏎
+── agy-startup @ 140
+󰉋 project⏎
+                                                                                                                               initializing⏎

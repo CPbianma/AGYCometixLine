@@ -1,16 +1,20 @@
 use clap::{Args, Parser, Subcommand};
 
 #[derive(Parser, Debug)]
-#[command(name = "ccline")]
-#[command(version, about = "High-performance Claude Code StatusLine")]
+#[command(name = "agyline")]
+#[command(version, about = "Antigravity CLI status line")]
 pub struct Cli {
     /// Enter TUI configuration mode
     #[arg(short = 'c', long = "config")]
     pub config: bool,
 
+    /// Save a sanitized diagnostic payload while rendering stdin (opt-in)
+    #[arg(long, value_name = "FILE", conflicts_with = "config")]
+    pub capture: Option<std::path::PathBuf>,
+
     /// Render task lines for `subagentStatusLine` (also detected from the
     /// input)
-    #[arg(long)]
+    #[arg(long, hide = true)]
     pub subagent: bool,
 
     #[command(subcommand)]
@@ -21,20 +25,17 @@ pub struct Cli {
 pub enum Command {
     /// Render built-in sample sessions (or a captured JSON file) with your config
     Preview(PreviewArgs),
-    /// Check for a newer ccline now and show how to upgrade
-    Update,
-    /// The companion mod for Claude Code 2.1.287+: install, update, remove
-    /// or show it
-    Mod {
-        #[command(subcommand)]
-        action: Option<ModAction>,
-    },
+    /// Install a stable executable and reversibly connect AGY settings
+    Install(IntegrationArgs),
+    /// Show integration ownership, paths and restoration record
+    Status(IntegrationArgs),
+    /// Restore only the statusLine captured during installation
+    Uninstall(IntegrationArgs),
     /// Refresh the cached git status of a directory (started in the
     /// background by renders)
     #[command(hide = true)]
     RefreshGit { dir: std::path::PathBuf },
-    /// Check for a newer ccline and record the answer (started in the
-    /// background by renders)
+    /// Compatibility no-op; agyline does not query upstream release servers
     #[command(hide = true)]
     UpdateCheck,
     /// Run a `cmd` item's command and cache its output (started in the
@@ -52,20 +53,30 @@ pub enum Command {
     },
 }
 
-#[derive(Subcommand, Debug, Clone, Copy)]
-pub enum ModAction {
-    /// Show whether it is installed and current
-    Status,
-    /// Install it, or bring it up to date
-    Install,
-    /// Remove it
-    Uninstall,
+#[derive(Args, Debug, Default)]
+pub struct IntegrationArgs {
+    /// Host settings.json (default: AGY_CONFIG_DIR/settings.json)
+    #[arg(long)]
+    pub settings: Option<std::path::PathBuf>,
+    /// Stable tool directory (default: AGYLINE_HOME)
+    #[arg(long)]
+    pub home: Option<std::path::PathBuf>,
+}
+
+impl IntegrationArgs {
+    pub fn installation(self) -> crate::integration::Installation {
+        crate::integration::Installation::new(
+            self.settings
+                .unwrap_or_else(crate::cc_settings::Settings::user_path),
+            self.home.unwrap_or_else(crate::paths::home),
+        )
+    }
 }
 
 #[derive(Args, Debug)]
 pub struct PreviewArgs {
     /// Scenario name, or a path to a status line JSON file
-    #[arg(short, long, default_value = "normal")]
+    #[arg(short, long, default_value = "antigravity")]
     pub scenario: String,
 
     /// Render every built-in scenario
@@ -92,5 +103,19 @@ pub struct PreviewArgs {
 impl Cli {
     pub fn parse_args() -> Self {
         Self::parse()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn preview_defaults_to_the_native_agy_scenario() {
+        let cli = Cli::try_parse_from(["agyline", "preview"]).unwrap();
+        let Some(Command::Preview(arguments)) = cli.command else {
+            panic!("expected preview");
+        };
+        assert_eq!(arguments.scenario, "antigravity");
     }
 }

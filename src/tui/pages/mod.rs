@@ -58,7 +58,7 @@ impl PageId {
             PageId::Layout => "Layout",
             PageId::Style => "Style",
             PageId::Models => "Models",
-            PageId::Claude => "Claude Code",
+            PageId::Claude => "Antigravity",
         }
     }
 }
@@ -72,9 +72,11 @@ pub struct Env {
     pub session: Option<SessionState>,
     /// Model ids seen in recent sessions.
     pub seen: BTreeMap<String, Seen>,
-    /// Claude Code's user settings file.
+    /// Antigravity CLI user settings file.
     pub settings: std::path::PathBuf,
     /// The last update check.
+    #[allow(dead_code)]
+    // Compatibility with upstream TUI fixtures; never shown as agyline releases.
     pub update: crate::state::update::UpdateState,
 }
 
@@ -90,10 +92,34 @@ impl Env {
         }
     }
 
-    /// Claude Code's version as last seen by a render.
+    pub fn installation(&self, doc: &Doc) -> crate::integration::Installation {
+        crate::integration::Installation::new(
+            self.settings.clone(),
+            doc.paths()
+                .config
+                .parent()
+                .map(std::path::Path::to_path_buf)
+                .unwrap_or_else(crate::paths::home),
+        )
+    }
+
+    /// Internal legacy capability gate; AGY must never be compared with
+    /// inherited Claude version thresholds.
     pub fn cc_version(&self) -> Option<Version> {
-        let input = self.session.as_ref()?.last_input.as_ref()?;
-        Version::parse(input.get("version")?.as_str()?)
+        let value = self.session.as_ref()?.last_input.as_ref()?;
+        crate::input::Input::parse(&value.to_string())
+            .ok()?
+            .cc_version()
+    }
+
+    /// The actual AGY CLI version from the most recent native render.
+    pub fn agy_version(&self) -> Option<String> {
+        let value = self.session.as_ref()?.last_input.as_ref()?;
+        let input = crate::input::Input::parse(&value.to_string()).ok()?;
+        if !input.is_antigravity() {
+            return None;
+        }
+        input.version
     }
 }
 
@@ -157,9 +183,28 @@ pub trait Page {
     fn shortcuts(&self) -> bool {
         false
     }
-    /// Changes to Claude Code's settings drafted here and not written yet,
+    /// Changes to AGY settings drafted here and not written yet,
     /// for saving and quitting to bring up.
     fn unapplied(&self) -> Option<SettingsDiff> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn displays_only_the_native_agy_cli_version() {
+        let mut environment = crate::tui::app::tests::env();
+        environment.session = Some(SessionState {
+            last_input: Some(json!({"product":"antigravity", "version":"0.4.7"})),
+            ..SessionState::default()
+        });
+        assert_eq!(environment.agy_version().as_deref(), Some("0.4.7"));
+        assert_eq!(environment.cc_version(), None);
+        environment.session.as_mut().unwrap().last_input = Some(json!({"version":"2.1.300"}));
+        assert_eq!(environment.agy_version(), None);
     }
 }

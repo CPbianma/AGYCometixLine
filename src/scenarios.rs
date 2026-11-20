@@ -168,6 +168,59 @@ impl GitSpec {
 
 pub const SCENARIOS: &[Scenario] = &[
     Scenario {
+        name: "antigravity",
+        summary: "Native Gemini session with subscription quota (sample data)",
+        git: Some(GitSpec {
+            branch: "main",
+            ahead: 2,
+            behind: 0,
+            modified: 1,
+            untracked: 0,
+            conflicts: 0,
+        }),
+        history: &[],
+        today: None,
+        latest: None,
+        bridge: None,
+        json: include_str!("../tests/fixtures/antigravity.json"),
+    },
+    Scenario {
+        name: "agy-low-quota",
+        summary: "Native Claude session: exhausted, low, disabled and unknown quota buckets",
+        git: None,
+        history: &[],
+        today: None,
+        latest: None,
+        bridge: None,
+        json: r#"{
+          "product": "antigravity", "version": "1.5.13", "terminal_width": 100,
+          "model": {"id": "Claude Opus 5.5 (High)", "display_name": "Claude Opus 5.5", "effort": "high"},
+          "cwd": "/workspace/project", "plan_tier": "Pro", "agent_state": "working",
+          "context_window": {"context_window_size": 200000, "used_percentage": 86},
+          "quota": {
+            "claude-weekly": {"remaining_fraction": 0.04, "reset_in_seconds": 3600},
+            "gemini-weekly": {"remaining_fraction": 0, "reset_in_seconds": 7200},
+            "credits": {"remaining_amount": 1200},
+            "disabled-bucket": {"disabled": true},
+            "unknown-bucket": {}
+          }
+        }"#,
+    },
+    Scenario {
+        name: "agy-startup",
+        summary: "Native startup with unavailable optional fields; no fabricated zero usage",
+        git: None,
+        history: &[],
+        today: None,
+        latest: None,
+        bridge: None,
+        json: r#"{"product": "antigravity", "version": "1.5.13", "agent_state": "initializing", "cwd": "/workspace/project", "terminal_width": 60}"#,
+    },
+];
+
+/// Retained exclusively for upstream render-core compatibility tests.
+pub const LEGACY_SCENARIOS: &[Scenario] = &[
+    Scenario {
         name: "normal",
         summary: "A typical session midway through",
         git: Some(GitSpec {
@@ -510,7 +563,10 @@ pub fn subagent(now: i64) -> SubagentInput {
 }
 
 pub fn find(name: &str) -> Option<&'static Scenario> {
-    SCENARIOS.iter().find(|s| s.name == name)
+    SCENARIOS
+        .iter()
+        .chain(LEGACY_SCENARIOS)
+        .find(|s| s.name == name)
 }
 
 impl Scenario {
@@ -596,8 +652,11 @@ mod tests {
     fn every_scenario_parses_with_core_fields() {
         for s in SCENARIOS {
             let input = s.input(BASE);
-            assert!(input.model_id().is_some(), "{}", s.name);
-            assert!(input.cc_version().is_some(), "{}", s.name);
+            assert!(input.is_antigravity(), "{}", s.name);
+            assert!(input.version.is_some(), "{}", s.name);
+            if s.name != "agy-startup" {
+                assert!(input.model_id().is_some(), "{}", s.name);
+            }
         }
     }
 
@@ -634,41 +693,39 @@ mod tests {
     /// save what only some sessions have; each of those shows in another
     /// sample. `cmd` needs a command and `task.*` belong to the subagent line.
     #[test]
-    fn normal_shows_all_but_situational_metrics() {
+    fn native_previews_never_offer_claude_only_metrics() {
         use crate::metrics::{self, Ctx, GitSource, Options};
-        let situational = ["update", "quota.spend", "quota.eta", "worktree"];
         let registry = crate::models::Registry::default();
         let tz = chrono::FixedOffset::east_opt(0).unwrap();
-        let readings: Vec<_> = SCENARIOS
-            .iter()
-            .map(|s| {
-                let input = s.input(BASE);
-                let ctx = Ctx::new(&input, &registry, BASE, tz, crate::style::GlyphTier::Nerd)
-                    .with_git(GitSource::Fixed(s.git()))
-                    .with_state(s.state(BASE));
-                let shown: Vec<_> = metrics::catalog()
-                    .iter()
-                    .filter(|m| metrics::read(m, &ctx, &Options::new()).is_some())
-                    .map(|m| m.meta.id)
-                    .collect();
-                (s.name, shown)
-            })
-            .collect();
-        for m in metrics::catalog() {
-            let id = m.meta.id;
-            if id == "cmd" || id.starts_with("task.") {
-                continue;
+        for scenario in SCENARIOS {
+            let input = scenario.input(BASE);
+            let context = Ctx::new(&input, &registry, BASE, tz, crate::style::GlyphTier::Nerd)
+                .with_git(GitSource::Fixed(scenario.git()))
+                .with_state(scenario.state(BASE));
+            for metric in metrics::catalog() {
+                if !metrics::antigravity_supported(metric.meta.id) {
+                    assert!(
+                        metrics::read(metric, &context, &Options::new()).is_none(),
+                        "{}: {}",
+                        scenario.name,
+                        metric.meta.id
+                    );
+                }
             }
-            let shown = |name: &str| {
-                readings
-                    .iter()
-                    .any(|(n, ids)| *n == name && ids.contains(&id))
-            };
-            if situational.contains(&id) {
-                assert!(!shown("normal"), "{id} is situational");
-                assert!(readings.iter().any(|(_, ids)| ids.contains(&id)), "{id}");
-            } else {
-                assert!(shown("normal"), "{id}");
+            if scenario.name == "antigravity" {
+                for identifier in [
+                    "model", "context", "quota", "plan", "state", "cost", "tasks", "dir", "git",
+                ] {
+                    assert!(
+                        metrics::read(
+                            metrics::find(identifier).unwrap(),
+                            &context,
+                            &Options::new()
+                        )
+                        .is_some(),
+                        "{identifier}"
+                    );
+                }
             }
         }
     }

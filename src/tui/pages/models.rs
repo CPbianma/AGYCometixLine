@@ -16,10 +16,7 @@ use ratatui::style::Style;
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, Cell, HighlightSpacing, Paragraph, Row, Table, TableState};
 
-/// What Claude Code assumes for a model it doesn't know.
-const CC_DEFAULT: u64 = 200_000;
 const CC_1M: u64 = 1_000_000;
-const ENV_VAR: &str = "CLAUDE_CODE_MAX_CONTEXT_TOKENS";
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 enum Pane {
@@ -92,41 +89,30 @@ fn kind_name(k: MatchKind) -> &'static str {
     }
 }
 
-/// The window Claude Code assumes for an id it can't size.
-fn cc_assumes(id: &str) -> u64 {
-    if id.to_lowercase().contains("[1m]") {
-        CC_1M
-    } else {
-        CC_DEFAULT
-    }
-}
-
-/// How the tester resolves `id`: the result line, and the environment
-/// line that would make Claude Code use the real window, if it differs.
+/// Preview naming rules without proposing unsupported host environment fixes.
 fn test_id(
     id: &str,
     registry: &Registry,
     rules: &[crate::models::Rule],
 ) -> (Line<'static>, Option<String>) {
-    let assumed = cc_assumes(id);
-    let r = registry.resolve(id, None, Some(assumed));
+    let r = registry.resolve(id, None, None);
     let source = match r.source {
         NameSource::UserRule(i) => format!("rule #{} ({})", i + 1, kind_name(rules[i].match_kind)),
-        NameSource::ClaudeCode => "Claude Code's name".into(),
+        NameSource::ClaudeCode => "host name".into(),
         NameSource::Builtin if builtin::claude_model(id).is_some() => "Claude model".into(),
         NameSource::Builtin => "built-in rule".into(),
         NameSource::RawId => "not recognized".into(),
     };
-    let window = r.window.unwrap_or(assumed);
+    let window = r
+        .window
+        .map(grouped)
+        .unwrap_or_else(|| "window from agy".into());
     let line = Line::from(vec![
         Span::styled("→ ", ui::accent()),
-        Span::raw(format!("{} · {}", r.name, grouped(window))),
+        Span::raw(format!("{} · {}", r.name, window)),
         Span::styled(format!("    {source}"), ui::muted()),
     ]);
-    // Claude Code sizes its own models; the variable is for the others.
-    let fix = (builtin::claude_model(id).is_none() && window != assumed)
-        .then(|| format!("{ENV_VAR}={window}"));
-    (line, fix)
+    (line, None)
 }
 
 fn focused_panel(title: &str, focused: bool) -> Block<'static> {
@@ -176,7 +162,11 @@ impl Models {
                 .take(rows)
                 .map(|(i, u)| {
                     let on = focused && i == self.unrec;
-                    let window = grouped(u.cc_window.unwrap_or(CC_DEFAULT));
+                    let window = u
+                        .cc_window
+                        .filter(|window| *window > 0)
+                        .map(grouped)
+                        .unwrap_or_else(|| "unknown".into());
                     Line::from(vec![
                         marker(on),
                         Span::styled("! ", Style::default().fg(ui::WARN)),
@@ -185,7 +175,7 @@ impl Models {
                             if on { ui::accent() } else { Style::default() },
                         ),
                         Span::raw(format!(
-                            "seen {:<5} {:<9}  CC assumes {window:<11}",
+                            "seen {:<5} {:<9}  AGY reports {window:<11}",
                             format!("{}×", u.count),
                             ago(cx.env.now, u.last)
                         )),
@@ -388,28 +378,15 @@ impl Models {
                 ui::muted(),
             ));
         } else {
-            let (result, fix) = test_id(id, registry, &cx.doc.models.rules);
+            let (result, _) = test_id(id, registry, &cx.doc.models.rules);
             lines.push(result);
-            if let Some(fix) = fix {
-                lines.push(Line::styled(
-                    format!(
-                        "! Claude Code assumes {} for it. Set",
-                        grouped(cc_assumes(id))
-                    ),
-                    Style::default().fg(ui::WARN),
-                ));
-                lines.push(Line::from(vec![
-                    Span::raw("  "),
-                    Span::styled(fix, ui::accent()),
-                ]));
-                lines.push(Line::styled(
-                    "  so auto-compact uses the real window.",
-                    ui::muted(),
-                ));
-            }
+            lines.push(Line::styled(
+                "Native context always follows the agy payload.",
+                ui::muted(),
+            ));
         }
         let hints = if focused {
-            ui::hints(&[("enter", "copy the env line"), ("esc", "leave")])
+            ui::hints(&[("esc", "leave")])
         } else {
             Line::raw("")
         };
@@ -484,9 +461,7 @@ impl Page for Models {
                     let id = self.tester.text();
                     match test_id(id.trim(), &registry, &doc.models.rules).1 {
                         Some(fix) if !id.trim().is_empty() => Outcome::Copy(fix),
-                        _ => Outcome::Toast(
-                            "Nothing to copy: Claude Code already uses this window".into(),
-                        ),
+                        _ => Outcome::Toast("Native context always follows the agy payload".into()),
                     }
                 }
                 _ if self.tester.handle(key) => Outcome::Consumed,
@@ -581,11 +556,7 @@ impl Page for Models {
 
     fn keys(&self) -> Vec<(&'static str, &'static str)> {
         match self.pane {
-            Pane::Tester => vec![
-                ("tab", "pane"),
-                ("enter", "copy env line"),
-                ("esc", "leave tester"),
-            ],
+            Pane::Tester => vec![("tab", "pane"), ("esc", "leave tester")],
             _ => vec![
                 ("tab", "pane"),
                 ("↑↓", "move"),
@@ -610,7 +581,7 @@ impl Page for Models {
     }
 
     fn scenario(&self) -> Option<&'static str> {
-        Some("third-party")
+        Some("antigravity")
     }
 }
 
@@ -667,7 +638,7 @@ mod tests {
             "Claude ids are recognized"
         );
         // The preview switched to the scenario where the registry matters.
-        assert!(s.contains("‹third-party›"), "{s}");
+        assert!(s.contains("‹antigravity›"), "{s}");
 
         // A: a rule prefilled from the most recent unrecognized id.
         app.handle_key(key(KeyCode::Char('a')));
@@ -695,7 +666,8 @@ mod tests {
             s.contains("Kimi K3 Preview · 256,000") && s.contains("rule #1 (contains)"),
             "{s}"
         );
-        assert!(s.contains("CLAUDE_CODE_MAX_CONTEXT_TOKENS=256000"), "{s}");
+        assert!(!s.contains("CLAUDE_CODE_MAX_CONTEXT_TOKENS"), "{s}");
+        assert!(s.contains("Native context always follows"), "{s}");
         // Typing in the tester doesn't switch pages or quit.
         typing(&mut app, "q1");
         assert!(!app.quit && app.page == PageId::Models);
@@ -703,7 +675,7 @@ mod tests {
         app.handle_key(key(KeyCode::Backspace));
         app.handle_key(key(KeyCode::Enter));
         assert!(
-            screen(&mut app, 112, 33).contains("Copied: CLAUDE_CODE_MAX_CONTEXT_TOKENS=256000")
+            screen(&mut app, 112, 33).contains("Native context always follows the agy payload")
         );
 
         app.handle_key(key(KeyCode::Esc));

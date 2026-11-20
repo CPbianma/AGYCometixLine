@@ -262,6 +262,18 @@ impl<'a> Ctx<'a> {
                     resolved.window_corrected = false;
                     if !matches!(resolved.source, crate::models::NameSource::UserRule(_)) {
                         resolved.name = model.display_name.as_deref().unwrap_or(id).to_string();
+                        if let Some(level) = self
+                            .input
+                            .effort
+                            .as_ref()
+                            .and_then(|effort| effort.level.as_deref())
+                            && let Some((name, suffix)) = resolved.name.rsplit_once('(')
+                            && suffix
+                                .strip_suffix(')')
+                                .is_some_and(|suffix| suffix.eq_ignore_ascii_case(level))
+                        {
+                            resolved.name = name.trim_end().to_string();
+                        }
                     }
                 }
                 Some(resolved)

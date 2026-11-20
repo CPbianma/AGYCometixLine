@@ -1,4 +1,4 @@
-use ccometixline::cli::{Cli, Command, ModAction, PreviewArgs};
+use ccometixline::cli::{Cli, Command, PreviewArgs};
 use ccometixline::config::{Config, DepthSetting, LoadNote};
 use ccometixline::env::{AutoCompact, ClaudeSettings};
 use ccometixline::input::{Input, MAX_INPUT_BYTES, SubagentInput};
@@ -18,11 +18,13 @@ fn main() {
 
     match cli.command {
         Some(Command::Preview(args)) => return preview(args),
-        Some(Command::Update) => return update(),
-        Some(Command::Mod { action }) => return companion(action.unwrap_or(ModAction::Status)),
+        Some(Command::Install(args)) => return integration_result(args.installation().install()),
+        Some(Command::Status(args)) => return integration_result(args.installation().status()),
+        Some(Command::Uninstall(args)) => {
+            return integration_result(args.installation().uninstall());
+        }
         Some(Command::RefreshGit { dir }) => return state::git_cache::refresh(&dir),
         Some(Command::UpdateCheck) => {
-            state::update::check(Utc::now().timestamp());
             return;
         }
         Some(Command::RefreshCmd {
@@ -39,48 +41,58 @@ fn main() {
 
     if cli.config || io::stdin().is_terminal() {
         if !io::stdout().is_terminal() {
-            eprintln!("ccline: the configuration TUI needs a terminal.");
+            eprintln!("agyline: the configuration TUI needs a terminal.");
             std::process::exit(1);
         }
         if let Err(e) = ccometixline::tui::run() {
-            eprintln!("ccline: {e}");
+            eprintln!("agyline: {e}");
             std::process::exit(1);
         }
         return;
     }
 
-    run(cli.subagent);
+    run(cli.subagent, cli.capture.as_deref());
 }
 
-fn run(subagent: bool) {
+fn run(subagent: bool, capture: Option<&std::path::Path>) {
     let mut text = String::new();
-    let _ = io::stdin()
-        .take(MAX_INPUT_BYTES as u64)
-        .read_to_string(&mut text);
-    let tasks = SubagentInput::detect(&text).or_else(|| {
-        // Asked for explicitly but not a task list: there is nothing to draw.
-        subagent.then(SubagentInput::default)
-    });
-    if let Some(payload) = tasks {
-        return run_subagent(&payload, &text);
+    if io::stdin()
+        .take(MAX_INPUT_BYTES as u64 + 1)
+        .read_to_string(&mut text)
+        .is_err()
+        || text.len() > MAX_INPUT_BYTES
+    {
+        println!("\x1b[0magyline: could not read status line input\x1b[0m");
+        return;
     }
     let input = match Input::parse(&text) {
         Ok(input) => input,
-        Err(e) => {
-            println!("\x1b[0mccline: could not read the status line input ({e})\x1b[0m");
+        Err(_) => {
+            println!("\x1b[0magyline: invalid status line input\x1b[0m");
             return;
         }
     };
+    if let Some(path) = capture
+        && let Some(snapshot) = input.replay_value()
+        && state::write_json(path, &snapshot).is_err()
+    {
+        eprintln!("agyline: diagnostic snapshot could not be written");
+    }
+    if !input.is_antigravity() {
+        let tasks = SubagentInput::detect(&text).or_else(|| subagent.then(SubagentInput::default));
+        if let Some(payload) = tasks {
+            return run_subagent(&payload, &text);
+        }
+    }
     let (config, note) = Config::load();
     let registry = Registry::load();
     let settings = ClaudeSettings::for_input(&input);
     let (now, tz) = (Utc::now().timestamp(), *Local::now().offset());
-    let mut view = state::observe(&input, &text, &registry, now, tz);
-    view.latest_version = state::update::available(&config.update, now);
+    let view = state::observe(&input, &text, &registry, now, tz);
     let frame = Frame {
         now,
         tz,
-        width: statusline::budget(&config, &settings),
+        width: statusline::budget_for_input(&config, &settings, &input),
         git: GitSource::Cached(config.git.cache_ms),
         state: view,
         compact: settings.auto_compact(),
@@ -92,7 +104,7 @@ fn run(subagent: bool) {
     if let LoadNote::Invalid(_) = note {
         let warn = statusline::theme(&config).palette.color(Token::Warn);
         let mark = Span::styled(
-            " ! ccline config",
+            " ! agyline config",
             Style {
                 fg: warn,
                 ..Style::default()
@@ -139,71 +151,11 @@ fn run_subagent(payload: &SubagentInput, raw: &str) {
     }
 }
 
-/// `ccline mod`: the companion mod's state, or installing and removing it
-/// through Claude Code's own plugin commands.
-fn companion(action: ModAction) {
-    use ccometixline::companion::{self, Status};
-    let status = companion::status();
-    match action {
-        ModAction::Status => {
-            match &status {
-                Status::NotInstalled => println!("The companion mod is not installed."),
-                Status::Outdated(i) => println!(
-                    "The companion mod {} is installed; this ccline has {}. Run `ccline mod install` to update it.",
-                    i.version.as_deref().unwrap_or("(unknown version)"),
-                    companion::version()
-                ),
-                Status::Current(i) => println!(
-                    "The companion mod {} is installed ({} scope).",
-                    companion::version(),
-                    i.scope
-                ),
-            }
-            println!(
-                "It needs Claude Code 2.1.287 or newer, and writes to {}.",
-                ccometixline::state::bridge::dir().display()
-            );
-        }
-        ModAction::Install | ModAction::Uninstall => {
-            let install = matches!(action, ModAction::Install);
-            let steps = if install {
-                companion::install_plan()
-            } else {
-                companion::uninstall_steps()
-            };
-            for s in &steps {
-                println!("$ {}", companion::shown(s));
-            }
-            let result = if install {
-                companion::install()
-            } else {
-                companion::uninstall()
-            };
-            match result {
-                Ok(()) if install => println!(
-                    "Installed. Restart Claude Code; set statusLine.refreshInterval (ccline's TUI can) so live data shows between turns."
-                ),
-                Ok(()) => println!("Removed."),
-                Err(e) => {
-                    eprintln!("ccline: {e}");
-                    std::process::exit(1);
-                }
-            }
-        }
-    }
-}
-
-fn update() {
-    use state::update::{CURRENT, RELEASES, is_newer};
-    match state::update::check(Utc::now().timestamp()) {
-        Some(latest) if is_newer(&latest, CURRENT) => {
-            println!("ccline {latest} is available (running {CURRENT}).");
-            println!("Upgrade:       npm update -g @cometix/ccline");
-            println!("Release notes: {RELEASES}/tag/v{latest}");
-        }
-        Some(latest) => println!("ccline {CURRENT} is up to date (latest published: {latest})."),
-        None => {
-            eprintln!("ccline: could not reach the npm registry or GitHub; try again later.");
+fn integration_result(result: Result<ccometixline::integration::Status, String>) {
+    match result {
+        Ok(status) => println!("{status}"),
+        Err(error) => {
+            eprintln!("agyline: {error}");
             std::process::exit(1);
         }
     }
@@ -297,9 +249,9 @@ fn preview(args: PreviewArgs) {
                 render(&input, GitSource::Live, StateView::default(), compact)
             )
         }
-        Ok(Err(e)) => eprintln!("ccline: {} is not status line JSON: {e}", args.scenario),
+        Ok(Err(_)) => eprintln!("agyline: {} is not status line JSON", args.scenario),
         Err(_) => eprintln!(
-            "ccline: no scenario or file named {:?}; see `ccline preview --list`",
+            "agyline: no scenario or file named {:?}; see `agyline preview --list`",
             args.scenario
         ),
     }

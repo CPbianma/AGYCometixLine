@@ -113,6 +113,7 @@ pub fn lines(input: &Input, config: &Config, registry: &Registry, frame: Frame) 
             let spec = line_spec(line, &ctx, &theme).0;
             layout::wrap(&spec, frame.width, &theme)
         })
+        .filter(|line| line.iter().any(|span| !span.text.trim().is_empty()))
         .collect()
 }
 
@@ -394,20 +395,19 @@ mod tests {
     }
 
     #[test]
-    fn cometix_draws_one_classic_line() {
-        let out = render("cometix", "normal", None);
-        assert_eq!(
-            out,
-            vec![
-                "\u{ef23} Opus 4.8 · High | \u{f024b} app | \u{f02a2} main ● ↑2 | \u{f49b} 62% · 124k tokens | \u{f1c0} 3:42 · 94% hit"
-            ]
-        );
+    fn cometix_draws_classic_identity_and_native_quota_rows() {
+        let out = render("cometix", "antigravity", None);
+        assert_eq!(out.len(), 2);
+        assert!(out[0].contains("Gemini 4 Neon · xHigh"));
+        assert!(out[0].contains("agyline") && out[0].contains("25%"));
+        assert!(out[1].contains("Pro") && out[1].contains("gemini-weekly 82% left"));
+        assert!(out[1].contains("claude-weekly 65% left"));
     }
 
     #[test]
     fn corrects_third_party_context() {
         let out = render("minimal", "third-party", None);
-        assert_eq!(out, vec!["Kimi K2 Turbo · 81% · cache 3:00 · $0.84"]);
+        assert_eq!(out, vec!["Kimi K2 Turbo · 81%"]);
     }
 
     #[test]

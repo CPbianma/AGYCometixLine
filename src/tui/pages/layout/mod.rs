@@ -225,6 +225,9 @@ impl LayoutPage {
         }
         match library::avail(&m.meta, self.target, env.cc_version()) {
             Avail::Needs(v) => return Outcome::Toast(format!("{id} needs Claude Code {v}")),
+            Avail::HostUnsupported => {
+                return Outcome::Toast(format!("{id} is not exposed by Antigravity"));
+            }
             Avail::TaskOnly => {
                 return Outcome::Toast(format!(
                     "{id} describes a background task; t edits the subagent line"
@@ -527,6 +530,9 @@ impl Page for LayoutPage {
                 return Outcome::Consumed;
             }
             KeyCode::Char('t') => {
+                if env.cc_version().is_none() {
+                    return Outcome::Toast("Antigravity exposes aggregate tasks, not a subagentStatusLine; add the tasks metric instead".into());
+                }
                 self.target = match self.target {
                     Target::Status => Target::Subagent,
                     Target::Subagent => Target::Status,
@@ -553,7 +559,6 @@ impl Page for LayoutPage {
                 ("enter", "add/remove"),
                 ("←→", "fold"),
                 ("/", "search"),
-                ("t", "switch line"),
             ],
             Pane::Canvas if self.target == Target::Subagent => vec![
                 ("tab", "pane"),
@@ -567,7 +572,6 @@ impl Page for LayoutPage {
                 ("alt+arrows", "move"),
                 ("x", "remove"),
                 ("n", "new line"),
-                ("t", "subagent line"),
                 ("a", "add"),
             ],
             Pane::Inspector => vec![
@@ -658,14 +662,15 @@ mod tests {
         }
         let (left, right) = ids(&app.doc.config.lines[0]);
 
-        // Library → Identity → effort, added after the first item.
+        // Search the native state metric and insert it after the first item.
         app.handle_key(key(KeyCode::BackTab));
+        for character in "/state".chars() {
+            app.handle_key(key(KeyCode::Char(character)));
+        }
         app.handle_key(key(KeyCode::Enter));
-        app.handle_key(key(KeyCode::Down));
-        app.handle_key(key(KeyCode::Down));
         app.handle_key(key(KeyCode::Enter));
         let mut want = left.clone();
-        want.insert(1, "output_style".into());
+        want.insert(1, "state".into());
         assert_eq!(ids(&app.doc.config.lines[0]).0, want);
         // Enter again takes it off rather than adding a second one; toggling
         // on and off keeps it in the same place every time.
@@ -683,13 +688,13 @@ mod tests {
         }
         let (l, r) = ids(&app.doc.config.lines[0]);
         assert_eq!(l, left);
-        assert_eq!(r[0], "output_style");
+        assert_eq!(r[0], "state");
         assert_eq!(r[1..], right[..]);
 
         // Inspector: widget text → bar on the selected effort.
         app.handle_key(key(KeyCode::Enter));
         let s = screen(&mut app, 112, 33);
-        assert!(s.contains("Output style name"), "{s}");
+        assert!(s.contains("Native agent state"), "{s}");
         app.handle_key(key(KeyCode::Right));
         assert!(matches!(
             &app.doc.config.lines[0].right[0],
@@ -698,7 +703,7 @@ mod tests {
         app.handle_key(key(KeyCode::Delete));
         assert_eq!(
             app.doc.config.lines[0].right[0],
-            ItemSpec::Id("output_style".into())
+            ItemSpec::Id("state".into())
         );
 
         // Remove it, then undo the removal.
@@ -706,7 +711,7 @@ mod tests {
         app.handle_key(key(KeyCode::Char('x')));
         assert_eq!(ids(&app.doc.config.lines[0]), (left.clone(), right.clone()));
         app.handle_key(ctrl('z'));
-        assert_eq!(ids(&app.doc.config.lines[0]).1[0], "output_style");
+        assert_eq!(ids(&app.doc.config.lines[0]).1[0], "state");
 
         // A new line below; the "+ new line" row adds one too.
         let n = app.doc.config.lines.len();
@@ -715,12 +720,9 @@ mod tests {
         app.handle_key(key(KeyCode::Char('x')));
         assert_eq!(app.doc.config.lines.len(), n);
 
-        // Task metrics only go on the subagent line.
+        // AGY has no separate subagentStatusLine integration.
         app.handle_key(key(KeyCode::Char('t')));
-        assert!(screen(&mut app, 112, 33).contains("Preview · subagent"));
-        app.handle_key(key(KeyCode::Char('x')));
-        assert!(app.doc.config.subagent.is_some());
-        app.handle_key(ctrl('z'));
+        assert!(screen(&mut app, 112, 33).contains("Antigravity exposes aggregate tasks"));
         assert!(app.doc.config.subagent.is_none());
 
         // One pane at a time below 100 columns.

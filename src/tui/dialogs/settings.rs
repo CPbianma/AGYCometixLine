@@ -1,8 +1,9 @@
-//! F · Changing Claude Code's `settings.json`: the change as a diff, then
+//! F · Changing AGY `settings.json`: the change as a diff, then
 //! a backup and the write.
 
 use super::{Action, Dialog, Reply};
 use crate::cc_settings::{Mark, Settings};
+use crate::integration::Installation;
 use crate::tui::doc::Doc;
 use crate::tui::pages::Cx;
 use crate::tui::ui;
@@ -24,15 +25,26 @@ pub struct SettingsDiff {
     pub draft: Settings,
     /// Quit once they're written: the last step of saving on the way out.
     pub then_quit: bool,
+    installation: Installation,
+    uninstall: bool,
 }
 
 impl SettingsDiff {
-    pub fn new(base: Settings, draft: Settings) -> SettingsDiff {
+    pub fn install(installation: Installation, base: Settings, draft: Settings) -> Self {
         SettingsDiff {
             base,
             draft,
             then_quit: false,
+            installation,
+            uninstall: false,
         }
+    }
+
+    pub fn uninstall(installation: Installation) -> Result<Self, String> {
+        let (base, draft) = installation.preview_uninstall()?;
+        let mut dialog = Self::install(installation, base, draft);
+        dialog.uninstall = true;
+        Ok(dialog)
     }
 }
 
@@ -52,7 +64,11 @@ impl Dialog for SettingsDiff {
         let rect = ui::popup(f, area, WIDTH, shown as u16 + more + 7);
         let room = WIDTH as usize - 2;
         let mut text = vec![
-            Line::raw(" ccline will write this to your Claude Code settings:"),
+            Line::raw(if self.uninstall {
+                " Restore only the recorded AGY statusLine:"
+            } else {
+                " Install stable agyline and apply this AGY statusLine:"
+            }),
             Line::raw(""),
         ];
         for (mark, line) in diff.iter().take(shown) {
@@ -74,15 +90,8 @@ impl Dialog for SettingsDiff {
         }
         text.push(Line::raw(""));
         text.push(Line::from(vec![
-            Span::styled(" Backup  ", ui::muted()),
-            Span::raw(format!(
-                "{}.ccline-bak",
-                self.base
-                    .path
-                    .file_name()
-                    .unwrap_or_default()
-                    .to_string_lossy()
-            )),
+            Span::styled(" Recovery  ", ui::muted()),
+            Span::raw("installation.json + unique settings backup"),
         ]));
         let apply = if self.then_quit {
             "apply and quit"
@@ -96,12 +105,13 @@ impl Dialog for SettingsDiff {
 
     fn handle(&mut self, key: KeyEvent, _: &mut Doc) -> Reply {
         match key.code {
-            KeyCode::Char('y' | 'Y') => match self.draft.save(&self.base) {
+            KeyCode::Char('y' | 'Y') => match if self.uninstall {
+                self.installation.apply_uninstall(&self.base)
+            } else {
+                self.installation.apply_install(&self.base, &self.draft)
+            } {
                 Ok(_) if self.then_quit => Reply::Then(Action::Quit),
-                Ok(backup) => Reply::Then(Action::Toast(match backup {
-                    Some(b) => format!("Updated settings.json · old file in {}", shown_path(&b)),
-                    None => "Created settings.json".into(),
-                })),
+                Ok(status) => Reply::Then(Action::Toast(format!("agyline: {}", status.state))),
                 Err(e) => Reply::Then(Action::Error(format!("Couldn't write settings.json: {e}"))),
             },
             KeyCode::Char('n' | 'N') | KeyCode::Esc => Reply::Close,

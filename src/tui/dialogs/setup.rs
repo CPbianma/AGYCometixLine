@@ -1,9 +1,10 @@
 //! H · First-run setup: what's there, the font, a preset, and pointing
-//! Claude Code at ccline. Finishing saves the config.
+//! Antigravity CLI at agyline. Finishing saves the config.
 
 use super::{Action, Dialog, Reply};
 use crate::cc_settings::{self, Mark, Settings};
 use crate::config::LoadNote;
+use crate::integration::Installation;
 use crate::presets::{self, PRESETS, Parts};
 use crate::style::glyphs::{self, GlyphTier, IconKey};
 use crate::tui::doc::Doc;
@@ -19,16 +20,19 @@ use std::path::PathBuf;
 
 const WIDTH: u16 = 76;
 const STEPS: [&str; 4] = ["Detect", "Fonts", "Preset", "Connect"];
+type ConnectionPlan = Result<Option<(Settings, Settings)>, String>;
 
 pub struct Setup {
     step: usize,
     preset: usize,
-    /// Claude Code's settings file.
+    /// AGY host settings file.
     settings: PathBuf,
+    home: PathBuf,
+    reviewed_connection: Option<ConnectionPlan>,
 }
 
 impl Setup {
-    pub fn new(settings: PathBuf) -> Self {
+    pub fn with_home(settings: PathBuf, home: PathBuf) -> Self {
         Setup {
             step: 0,
             preset: PRESETS
@@ -36,6 +40,8 @@ impl Setup {
                 .position(|p| p.name == presets::DEFAULT)
                 .unwrap_or(0),
             settings,
+            home,
+            reviewed_connection: None,
         }
     }
 
@@ -52,18 +58,23 @@ impl Setup {
         Line::from(spans)
     }
 
-    /// The settings with `statusLine` pointing at ccline, if that changes
-    /// anything.
-    fn connection(&self) -> Result<Option<(Settings, Settings)>, String> {
-        let base = Settings::load(&self.settings)?;
-        let mut line = base.status_line().unwrap_or_default();
-        if cc_settings::is_ccline(&line.command) {
+    fn installation(&self) -> Installation {
+        Installation::new(self.settings.clone(), self.home.clone())
+    }
+
+    /// A preview using the same plan and ownership checks as `agyline install`.
+    fn plan_connection(&self) -> ConnectionPlan {
+        let installation = self.installation();
+        if installation.status()?.state == "installed" {
             return Ok(None);
         }
-        line.command = cc_settings::suggested_command();
-        let mut draft = base.clone();
-        draft.set_status_line(Some(&line));
-        Ok(Some((base, draft)))
+        installation.preview_install().map(Some)
+    }
+
+    fn connection(&self) -> ConnectionPlan {
+        self.reviewed_connection
+            .clone()
+            .unwrap_or_else(|| self.plan_connection())
     }
 
     fn detect(&self, cx: &Cx) -> Vec<Line<'static>> {
@@ -73,12 +84,12 @@ impl Setup {
                 Span::raw(value),
             ])
         };
-        let cc = match cx.env.cc_version() {
+        let cc = match cx.env.agy_version() {
             Some(v) => format!("{v}, from your last session"),
             None => "not seen yet; fine for a first run".into(),
         };
         let status = match Settings::load(&self.settings).map(|s| s.status_line()) {
-            Ok(Some(l)) if cc_settings::is_ccline(&l.command) => "runs ccline".to_string(),
+            Ok(Some(l)) if cc_settings::is_ccline(&l.command) => "runs agyline".to_string(),
             Ok(Some(l)) => format!("runs {}", crate::render::width::truncate(&l.command, 40)),
             Ok(None) => "not set".into(),
             Err(e) => e,
@@ -90,9 +101,9 @@ impl Setup {
         };
         let depth = format!("{:?}", crate::env::color_depth()).to_lowercase();
         vec![
-            Line::raw(" ccline found:"),
+            Line::raw(" agyline found:"),
             Line::raw(""),
-            row("Claude Code", cc),
+            row("AGY CLI", cc),
             row("statusLine", status),
             row("config", config),
             row("colors", depth),
@@ -180,12 +191,14 @@ impl Setup {
             }
             Ok(None) => {
                 lines.push(Line::styled(
-                    " Claude Code already runs ccline.",
+                    " Antigravity CLI already runs agyline.",
                     Style::default().fg(ui::OK),
                 ));
             }
             Ok(Some((base, draft))) => {
-                lines.push(Line::raw(" Point Claude Code's status line at ccline:"));
+                lines.push(Line::raw(
+                    " Install stable agyline and connect Antigravity CLI:",
+                ));
                 lines.push(Line::raw(""));
                 for (mark, line) in draft.diff(&base).into_iter().take(10) {
                     let (sign, style) = match mark {
@@ -201,7 +214,7 @@ impl Setup {
                 lines.push(Line::raw(""));
                 lines.push(Line::styled(
                     if base.exists() {
-                        " The old file is kept as settings.json.ccline-bak."
+                        " A unique settings backup and restoration record are kept."
                     } else {
                         " There is no settings.json yet; this creates it."
                     },
@@ -293,14 +306,19 @@ impl Dialog for Setup {
                     });
                 }
                 self.step = 3;
+                self.reviewed_connection = Some(self.plan_connection());
             }
             (3, KeyCode::Char('y' | 'Y')) => {
-                if let Ok(Some((base, draft))) = self.connection()
-                    && let Err(e) = draft.save(&base)
-                {
-                    return Reply::Then(Action::Error(format!(
-                        "Couldn't write settings.json: {e}"
-                    )));
+                match self.connection() {
+                    Ok(Some((base, draft))) => {
+                        if let Err(error) = self.installation().apply_install(&base, &draft) {
+                            return Reply::Then(Action::Error(format!(
+                                "Couldn't install agyline: {error}"
+                            )));
+                        }
+                    }
+                    Ok(None) => {}
+                    Err(error) => return Reply::Then(Action::Error(error)),
                 }
                 return self.finish();
             }
@@ -326,7 +344,7 @@ mod tests {
         let (dir, paths) = temp_paths("setup");
         let settings = dir.join("settings.json");
         let mut doc = Doc::open(paths);
-        let mut s = Setup::new(settings.clone());
+        let mut s = Setup::with_home(settings.clone(), dir.join("stable"));
         s.handle(key(KeyCode::Enter), &mut doc);
         s.handle(key(KeyCode::Char('u')), &mut doc);
         assert_eq!(doc.config.glyphs, GlyphTier::Unicode);
@@ -341,5 +359,26 @@ mod tests {
         let line = Settings::load(&settings).unwrap().status_line().unwrap();
         assert!(cc_settings::is_ccline(&line.command));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn refuses_settings_changed_after_the_connect_step_was_reviewed() {
+        let (directory, paths) = temp_paths("setup-concurrent");
+        let settings = directory.join("settings.json");
+        std::fs::write(&settings, "{\"keep\":1}").unwrap();
+        let mut document = Doc::open(paths);
+        let mut setup = Setup::with_home(settings.clone(), directory.join("stable"));
+        for code in [KeyCode::Enter, KeyCode::Char('a'), KeyCode::Enter] {
+            setup.handle(key(code), &mut document);
+        }
+        assert_eq!(setup.step, 3);
+        std::fs::write(&settings, "{\"keep\":2}").unwrap();
+        assert!(matches!(
+            setup.handle(key(KeyCode::Char('y')), &mut document),
+            Reply::Then(Action::Error(_))
+        ));
+        assert_eq!(std::fs::read_to_string(&settings).unwrap(), "{\"keep\":2}");
+        assert!(!directory.join("stable/installation.json").exists());
+        std::fs::remove_dir_all(directory).unwrap();
     }
 }

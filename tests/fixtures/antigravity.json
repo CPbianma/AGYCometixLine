@@ -1,0 +1,26 @@
+{
+  "product": "antigravity",
+  "version": "1.5.13",
+  "conversation_id": "sample-agy-session",
+  "conversation_title": "Build the native status line",
+  "cwd": "/workspace/agyline",
+  "workspace": {"current_dir": "/workspace/agyline", "project_dir": "/workspace/agyline"},
+  "model": {"id": "Gemini 4 Neon (XHigh)", "display_name": "Gemini 4 Neon", "effort": "xhigh"},
+  "terminal_width": 120,
+  "agent_state": "idle",
+  "plan_tier": "Pro",
+  "context_window": {
+    "total_input_tokens": 196608,
+    "total_output_tokens": 65536,
+    "context_window_size": 1048576,
+    "used_percentage": 25,
+    "remaining_percentage": 75,
+    "current_usage": {"input_tokens": 12000, "output_tokens": 500, "cache_read_input_tokens": 184608}
+  },
+  "quota": {
+    "gemini-weekly": {"remaining_fraction": 0.82, "reset_in_seconds": 18000},
+    "claude-weekly": {"remaining_fraction": 0.65, "reset_in_seconds": 86400}
+  },
+  "cost": {"total_usd": 0.42, "subagent_usd": 0, "estimated": true},
+  "task_count": 1
+}

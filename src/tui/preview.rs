@@ -466,7 +466,7 @@ mod tests {
         p.next_scenario(false);
         assert_eq!(p.scenario, SCENARIOS.len() - 1);
         p.next_scenario(true);
-        assert_eq!(SCENARIOS[p.scenario].name, "normal");
+        assert_eq!(SCENARIOS[p.scenario].name, "antigravity");
         p.resize(-8);
         assert_eq!(p.width, Some(88));
         p.resize(100);

@@ -1,39 +1,15 @@
-//! Whether a newer ccline is published. Renders only read `update.json`;
-//! when the last check is due they start a detached `ccline update-check`,
-//! which asks the npm registry, then its China mirror, then GitHub releases
-//! (through curl, so the binary carries no HTTP stack) and records the
-//! answer.
+//! Compatibility API for the upstream configurator. Network update checks
+//! are disabled until this fork has its own publication endpoint.
 
-use super::{dir, read_json, swr, write_json};
+use super::{dir, read_json};
 use crate::config::UpdateConfig;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
-use std::process::{Command, Stdio};
 
-/// The running ccline.
+/// The running agyline build.
 pub const CURRENT: &str = env!("CARGO_PKG_VERSION");
 
 pub const RELEASES: &str = "https://github.com/Haleclipse/CCometixLine/releases";
-
-/// Where to ask, and the JSON key holding the version.
-const SOURCES: &[(&str, &str)] = &[
-    (
-        "https://registry.npmjs.org/@cometix/ccline/latest",
-        "version",
-    ),
-    (
-        "https://registry.npmmirror.com/@cometix/ccline/latest",
-        "version",
-    ),
-    (
-        "https://api.github.com/repos/Haleclipse/CCometixLine/releases/latest",
-        "tag_name",
-    ),
-];
-/// Per-source time limit, in seconds.
-const FETCH_TIMEOUT: &str = "8";
-/// After a check where no source answered, try again this much later.
-const RETRY_SECS: i64 = 3_600;
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct UpdateState {
@@ -73,23 +49,11 @@ pub fn is_newer(latest: &str, current: &str) -> bool {
     matches!((semver(latest), semver(current)), (Some(l), Some(c)) if l > c)
 }
 
-/// The published version if it is newer than this one. Starts a background
-/// check when the last one is due; never waits for the network.
-pub fn available(config: &UpdateConfig, now: i64) -> Option<String> {
-    if !config.check {
-        return None;
-    }
-    let (path, lock) = paths();
-    let state: UpdateState = read_json(&path).unwrap_or_default();
-    let every = if state.ok {
-        i64::from(config.interval_hours.max(1)) * 3_600
-    } else {
-        RETRY_SECS
-    };
-    if now - state.checked_at >= every && swr::claim(&lock) {
-        swr::spawn(&lock, &["update-check".as_ref()]);
-    }
-    state.latest.filter(|v| is_newer(v, CURRENT))
+/// No update source is configured for this fork.
+pub fn available(_config: &UpdateConfig, _now: i64) -> Option<String> {
+    // This fork has no publication endpoint. Never offer an upstream ccline
+    // binary as an agyline update, or launch background network requests.
+    None
 }
 
 /// The last check's result, without starting one.
@@ -97,40 +61,14 @@ pub fn last() -> UpdateState {
     read_json(&paths().0).unwrap_or_default()
 }
 
-/// Ask each source in turn; `None` when none answered with a version.
+/// Reserved for a future, separately configured agyline update endpoint.
 pub fn fetch() -> Option<String> {
-    SOURCES.iter().find_map(|(url, key)| {
-        let mut cmd = Command::new("curl");
-        cmd.args(["-fsSL", "--max-time", FETCH_TIMEOUT, url])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null());
-        #[cfg(windows)]
-        {
-            use std::os::windows::process::CommandExt;
-            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
-            cmd.creation_flags(CREATE_NO_WINDOW);
-        }
-        let out = cmd.output().ok().filter(|o| o.status.success())?;
-        let json: serde_json::Value = serde_json::from_slice(&out.stdout).ok()?;
-        let version = json.get(key)?.as_str()?.trim().trim_start_matches('v');
-        semver(version).map(|_| version.to_string())
-    })
+    None
 }
 
-/// Check now, record the result and release the background lock. Returns
-/// what the sources said.
-pub fn check(now: i64) -> Option<String> {
-    let (path, lock) = paths();
-    let latest = fetch();
-    let previous: UpdateState = read_json(&path).unwrap_or_default();
-    let state = UpdateState {
-        checked_at: now,
-        ok: latest.is_some(),
-        latest: latest.clone().or(previous.latest),
-    };
-    let _ = write_json(&path, &state);
-    swr::release(&lock);
-    latest
+/// No network request or state mutation takes place.
+pub fn check(_now: i64) -> Option<String> {
+    None
 }
 
 #[cfg(test)]

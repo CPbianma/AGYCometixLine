@@ -39,7 +39,10 @@ pub struct Sample {
 
 impl Sample {
     pub fn from_input(input: &Input, now: i64) -> Sample {
-        let rl = input.rate_limits.as_ref().filter(|_| !input.is_antigravity());
+        let rl = input
+            .rate_limits
+            .as_ref()
+            .filter(|_| !input.is_antigravity());
         Sample {
             t: now,
             p: input.prompt_id.as_deref().map(prompt_key),

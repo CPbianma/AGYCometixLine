@@ -23,8 +23,8 @@ pub const DEFAULT: &str = "cometix";
 pub const PRESETS: &[Preset] = &[
     Preset {
         name: "cometix",
-        summary: "Classic look: model, directory, git, context and cache on one line",
-        tags: &[],
+        summary: "Classic two-row look: model, directory, git, context and native quota",
+        tags: &["multi-line", "quota", "context"],
         toml: r#"
 palette = "terminal"
 skin = "plain"
@@ -37,14 +37,15 @@ left = [
   { metric = "dir", icon_color = "bright_yellow" },
   "git",
   { metric = "context", widget = "text", format = "{pct}%[ · {tokens} tokens]" },
-  "cache",
 ]
-right = ["update"]
+
+[[line]]
+left = ["plan", { metric = "quota", cells = 8 }]
 "#,
     },
     Preset {
         name: "minimal",
-        summary: "Model, context, cache and cost, no icons",
+        summary: "Model, context and remaining quota, no icons",
         tags: &["minimal"],
         toml: r#"
 palette = "terminal"
@@ -56,14 +57,13 @@ separator = " · "
 left = [
   { metric = "model", icon = "" },
   { metric = "context", widget = "text", icon = "", format = "{pct}%" },
-  { metric = "cache", icon = "", format = "[cache {left}][cache {cold}]" },
-  { metric = "cost", icon = "" },
+  { metric = "quota", widget = "text", icon = "", format = "{name} {remaining}" },
 ]
 "#,
     },
     Preset {
         name: "dashboard",
-        summary: "Three lines: identity, meters, code activity",
+        summary: "Three rows: identity, context and native quota with agent activity",
         tags: &["multi-line", "quota", "context"],
         toml: r#"
 palette = "catppuccin-mocha"
@@ -72,20 +72,19 @@ glyphs = "nerd"
 
 [[line]]
 left = ["model", "dir", "git"]
-right = ["update", "cost"]
+right = ["plan", "cost"]
 
 [[line]]
-left = [{ metric = "context", bar = "eighths", cells = 10 }, "context.trend", { metric = "quota.5h", cells = 8 }]
-right = ["cache"]
+left = [{ metric = "context", bar = "eighths", cells = 10 }, "context.trend"]
+right = ["state", "tasks"]
 
 [[line]]
-left = ["lines", "pr", "worktree"]
-right = ["duration"]
+left = [{ metric = "quota", cells = 8 }]
 "#,
     },
     Preset {
         name: "budget",
-        summary: "Rate limits with pace and run-out, spend rates, compaction and cache",
+        summary: "Quota-first layout with remaining capacity and reset countdowns",
         tags: &["multi-line", "quota"],
         toml: r#"
 palette = "tokyo-night"
@@ -93,17 +92,17 @@ skin = "plain"
 glyphs = "nerd"
 
 [[line]]
-left = [{ metric = "quota.5h", cells = 10 }, { metric = "quota.7d", cells = 10 }, "quota.eta"]
-right = ["cost", "cost.rate", "cost.today"]
+left = ["plan", { metric = "quota", cells = 10 }]
 
 [[line]]
-left = [{ metric = "context", bar = "blocks" }, "context.to_compact", "cache"]
+left = ["model", { metric = "context", bar = "blocks" }]
+right = ["cost"]
 "#,
     },
     Preset {
-        name: "cache-aware",
-        summary: "Prompt cache countdown, hit ratio and misses under the usual line",
-        tags: &["multi-line", "cache"],
+        name: "session",
+        summary: "Rose Pine identity, host state, background tasks and native quota",
+        tags: &["multi-line", "quota"],
         toml: r#"
 palette = "rose-pine"
 skin = "plain"
@@ -112,19 +111,16 @@ separator = " · "
 
 [[line]]
 left = ["model", { metric = "dir", icon_color = "bright_yellow" }, "git", { metric = "context", widget = "text" }]
-right = ["update", "cost"]
+right = ["plan", "cost"]
 
 [[line]]
-left = [
-  { metric = "cache", widget = "bar", bar = "dots", cells = 8, format = "[warm {left}][{cold}]", priority = 4 },
-  { metric = "cache", icon = "", format = "[{hit}% hit][ · {misses}× miss][ · last: {cause}]", compact = "[{hit}% hit][ · {misses}× miss]", minimal = "[{hit}%]" },
-]
-right = ["cost.rate"]
+left = [{ metric = "quota", bar = "dots", cells = 8 }]
+right = ["state", "tasks", "mode"]
 "#,
     },
     Preset {
         name: "focus",
-        summary: "A wide context gauge, its growth per turn and the room left before compaction",
+        summary: "A wide native context gauge, recent trend and quota gauges",
         tags: &["multi-line", "context"],
         toml: r#"
 palette = "terminal"
@@ -136,8 +132,7 @@ left = [{ metric = "context", bar = "eighths", cells = 20, coloring = "gradient"
 right = [{ metric = "model", priority = 2 }]
 
 [[line]]
-left = [{ metric = "context.trend", cells = 12 }, { metric = "context.to_compact", icon = "", priority = 4 }]
-right = ["cache"]
+left = ["context.trend", { metric = "quota", widget = "gauge" }]
 "#,
     },
     Preset {
@@ -155,14 +150,13 @@ separator = " | "
 left = [
   { metric = "model", compact = "{family}" },
   { metric = "context", widget = "text", format = "ctx {pct}%" },
-  { metric = "cache", format = "[cache {left}][cache {cold}]" },
-  "cost",
+  { metric = "quota", widget = "text", format = "{name} {remaining}" },
 ]
 "#,
     },
     Preset {
         name: "powerline",
-        summary: "Powerline segments with a quota gauge, in v1's Tokyo Night colors",
+        summary: "Original Tokyo Night powerline look with native quota gauges",
         tags: &["powerline", "quota"],
         toml: r#"
 palette = "powerline-tokyo-night"
@@ -170,8 +164,11 @@ skin = "powerline"
 glyphs = "nerd"
 
 [[line]]
-left = ["model", "dir", "git", { metric = "context", widget = "text" }, "cache"]
-right = [{ metric = "quota.5h", widget = "gauge" }, "cost"]
+left = ["model", "dir", "git", { metric = "context", widget = "text" }]
+right = ["plan"]
+
+[[line]]
+left = [{ metric = "quota", widget = "gauge" }]
 "#,
     },
 ];
@@ -390,7 +387,7 @@ fn tags_of(c: &Config) -> Vec<&'static str> {
     if c.skin == SkinKind::Powerline {
         tags.push("powerline");
     }
-    if ids.iter().any(|m| m.starts_with("quota.")) {
+    if ids.iter().any(|m| m == "quota" || m.starts_with("quota.")) {
         tags.push("quota");
     }
     if ids.iter().any(|m| m == "cache" || m.starts_with("cache.")) {
@@ -719,7 +716,7 @@ mod tests {
         let e = lib.get("work").unwrap();
         assert!(e.is_mine());
         assert_eq!(e.summary, "Quota and cache");
-        assert_eq!(e.tags, ["mine", "multi-line", "quota", "cache"]);
+        assert_eq!(e.tags, ["mine", "multi-line", "quota"]);
         let back = e.config.as_ref().unwrap();
         assert_eq!(back.preset.as_deref(), Some("work"));
         // Applying it reproduces the look and layout it was saved from.

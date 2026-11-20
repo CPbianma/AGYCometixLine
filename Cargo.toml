@@ -1,15 +1,20 @@
 [package]
 name = "ccometixline"
-version = "2.0.1"
+version = "0.1.0"
+publish = false
 edition = "2024"
-rust-version = "1.88"
-description = "CCometixLine (ccline) - High-performance Claude Code StatusLine tool written in Rust"
+rust-version = "1.89"
+description = "agyline - Antigravity CLI status line powered by CCometixLine"
 authors = ["Haleclipse"]
 license = "MIT"
 repository = "https://github.com/Haleclipse/CCometixLine"
 readme = "README.md"
-keywords = ["claude", "statusline", "powerline", "rust", "claude-code"]
+keywords = ["antigravity", "statusline", "powerline", "rust", "agyline"]
 categories = ["command-line-utilities", "development-tools"]
+
+[[bin]]
+name = "agyline"
+path = "src/main.rs"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
