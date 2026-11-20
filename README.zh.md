@@ -1,273 +1,212 @@
-# CCometixLine
+# agyline
 
-[English](README.md) | [中文](README.zh.md)
+中文主文档 | [English quick start](README.md)
 
-用 Rust 编写的 Claude Code 状态栏：渲染快、可自由组合，自带全屏配置器。
+面向 **Antigravity CLI（AGY）** 的 Rust 状态栏，基于 CCometixLine fork。保留上游的 Rust 渲染器、可组合布局和全屏 TUI，接入 AGY 原生状态栏协议，并提供可恢复的本地安装。
 
-![Language:Rust](https://img.shields.io/static/v1?label=Language&message=Rust&color=orange&style=flat-square)
-![License:MIT](https://img.shields.io/static/v1?label=License&message=MIT&color=blue&style=flat-square)
+**当前版本为 0.1.0，仅支持本地／源码安装。** 新 GitHub 远程和 npm 命名空间尚未确定；本文不提供未发布包的安装命令，也不把上游 Releases 当成本 fork 下载源。`@cometix/ccline` 是上游包，不是 agyline，请勿用它安装本 fork。
 
-![Claude Code 中的 CCometixLine](assets/hero.webp)
+## 能做什么
 
-## 亮点
+- 显示 AGY 实际报告的模型、上下文、订阅、运行状态、后台任务、执行模式，以及目录和 Git 信息；没有数据的条目按其语义隐藏或显示未知。
+- 展开 AGY 原生 quota 的动态 bucket，显示剩余比例／数额、重置时间及 `unknown`、`disabled` 状态，不把 bucket 强行解释为固定时间窗口。
+- 延续多行布局、左右分组、文字／条形／仪表等渲染方式，以及 4 种皮肤、13 套配色和 Nerd Font／Unicode／ASCII 字形选择。
+- 在全屏 TUI 中选择预设、编辑布局和外观、管理模型规则，预览修改并审阅 AGY 设置变更。
+- 把本 fork 可执行文件安装到稳定位置，备份设置，并在卸载时仅恢复原来的 `statusLine`。
 
-- **会话状态一眼可见**：模型与推理强度、目录、git、上下文占用、提示缓存的剩余时间与命中率、5 小时与每周额度（以及用量比时间快还是慢）、费用、PR 等，共 30 多项指标。
-- **任意指标、任意形态**：每一项都可以显示成文字、进度条、分档图标、曲线或配速条，并备有三档文字模板，宽度不够时逐档缩短。
-- **自适应宽度**：终端变窄时在条目之间换行；右侧一组始终贴右对齐。
-- **外观**：四种骨架（plain、bracket、pill、powerline），13 套调色板（可以跟随终端配色，也可以自带颜色），Nerd Font / Unicode / ASCII 三档字形，色深从真彩到无色。
-- **八个预置**开箱即用，自己保存的预置和它们放在一起。
-- **配置器**：所有设置都能编辑，用示例会话实时预览，还能替你把 Claude Code 接到 ccline。
-- **第三方模型也准确**：模型登记表校正 Claude Code 不认识的模型名和上下文窗口。
-- **后台任务**：同一个程序也负责绘制每个运行中子代理下面的那一行。
-- **轻量**：一次渲染只比进程启动多几毫秒；git 在后台运行，不占渲染时间。
+### 数据边界
 
-## 安装
+1. **额度来自原生 quota bucket。** bucket 的名称、数量和含义由 AGY 输入决定。剩余比例是 remaining fraction，不是已用比例；只有剩余数额时不会凭空推算百分比。缺失不等于 0，禁用不等于耗尽。
+2. **费用全部是 `~` 估算，不是账单。** 不应据此核对扣款或认定账户真实余额。
+3. **没有可靠字段就不伪造。** 本协议没有可靠的固定 5 小时／7 天窗口、缓存 TTL 或自动压缩阈值，因此不展示伪造的配速、缓存倒计时或距自动压缩数值。
+4. 不读取凭据文件、不调用模型、不修改或 patch `agy.exe`。状态栏使用宿主传入的数据；如自行添加 `cmd` 指标，则会执行你明确配置的本地命令。
 
-```bash
-npm install -g @cometix/ccline
+## 从源码构建
+
+需要 **Rust 1.89 或更新版本**及对应平台的编译工具链；Git 指标需要 Git。图标建议使用 Nerd Font，没有时可在 TUI 中改用 Unicode 或 ASCII。
+
+在已经获取的本 fork 源码目录中执行：
+
+```sh
+cargo build --release --locked
 ```
 
-<details>
-<summary>yarn、pnpm、npm 镜像</summary>
+Cargo 内部包名暂时仍为 `ccometixline`；对外命令和构建产物是 **`agyline`**，不是 `ccometixline` 或 `ccline`。Windows 产物为 `target/release/agyline.exe`，macOS／Linux 为 `target/release/agyline`。
 
-```bash
-yarn global add @cometix/ccline
-pnpm add -g @cometix/ccline
-npm install -g @cometix/ccline --registry https://registry.npmmirror.com
+### Windows PowerShell
+
+先查看内置样例，再选择是否接入宿主：
+
+```powershell
+.\target\release\agyline.exe preview --scenario antigravity --width 100 --color none
+.\target\release\agyline.exe preview --scenario agy-low-quota --width 100 --color none
+.\target\release\agyline.exe preview --scenario agy-startup --width 100 --color none
+.\target\release\agyline.exe install
+.\target\release\agyline.exe status
 ```
 
-</details>
+安装后的稳定可执行文件可直接打开配置器：
 
-安装后程序位于 `~/.claude/ccline/ccline`，同时提供全局命令 `ccline`。以后更新：`npm update -g @cometix/ccline`。
-
-<details>
-<summary>手动下载</summary>
-
-从 [Releases](https://github.com/Haleclipse/CCometixLine/releases) 下载对应平台的压缩包，把程序放到 `~/.claude/ccline/ccline`（Windows 为 `ccline.exe`）。
-
-| 平台 | 压缩包 |
-|---|---|
-| Linux x64（glibc 2.35+） | `ccline-linux-x64.tar.gz` |
-| Linux x64 静态链接 | `ccline-linux-x64-static.tar.gz` |
-| Linux arm64 | `ccline-linux-arm64.tar.gz` |
-| Linux arm64 静态链接 | `ccline-linux-arm64-static.tar.gz` |
-| macOS Intel | `ccline-macos-x64.tar.gz` |
-| macOS Apple Silicon | `ccline-macos-arm64.tar.gz` |
-| Windows x64 | `ccline-windows-x64.zip` |
-
-```bash
-mkdir -p ~/.claude/ccline
-tar -xzf ccline-macos-arm64.tar.gz
-mv ccline ~/.claude/ccline/ && chmod +x ~/.claude/ccline/ccline
+```powershell
+& "$HOME\.gemini\antigravity-cli\agyline\agyline.exe" --config
 ```
 
-</details>
+### macOS／Linux
 
-<details>
-<summary>从源码构建</summary>
-
-```bash
-git clone https://github.com/Haleclipse/CCometixLine.git
-cd CCometixLine
-cargo build --release
-mkdir -p ~/.claude/ccline
-cp target/release/ccometixline ~/.claude/ccline/ccline
+```sh
+./target/release/agyline preview --scenario antigravity --width 100 --color none
+./target/release/agyline install
+./target/release/agyline status
+~/.gemini/antigravity-cli/agyline/agyline --config
 ```
 
-</details>
+安装器复制的是当前运行的本 fork 二进制；不会替你下载程序，也不会把 `target/release` 的临时构建路径写入宿主设置。它不自动添加全局 PATH。后文直接使用 `agyline` 的命令，均假设你已自行配置 PATH，否则请使用稳定文件的完整路径。
 
-## 接入 Claude Code
+## 路径与可恢复安装
 
-在终端里运行 `ccline`。首次运行会带你检查字体、选一个预置，并把 Claude Code 接到 ccline；**Claude Code** 页在写入 `settings.json` 之前会先列出改动，并保留备份。
+默认路径：
 
-也可以自己编辑 `~/.claude/settings.json`：
+- AGY 设置：`~/.gemini/antigravity-cli/settings.json`。
+- agyline 目录：`~/.gemini/antigravity-cli/agyline/`。
+- 稳定程序：Windows 为上述目录的 `agyline.exe`，macOS／Linux 为 `agyline`。
+- 工具配置：agyline 目录下的 `config.toml`、`models.toml`、`presets/` 和 `state/`。
+- 恢复记录：agyline 目录下的 `installation.json`。
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline",
-    "padding": 0
-  },
-  "subagentStatusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline"
-  }
-}
+`AGYLINE_HOME` 覆盖 **agyline 目录**；`AGY_CONFIG_DIR` 单独覆盖 **AGY 宿主目录**，设置文件为其下的 `settings.json`。两者独立，改变 `AGY_CONFIG_DIR` 不会自动搬迁 agyline。
+
+`install`、`status`、`uninstall` 都支持 `--settings <path>` 和 `--home <path>`。例如以下 PowerShell 命令使用当前目录下的隔离路径，而不是默认宿主设置：
+
+```powershell
+.\target\release\agyline.exe install --settings .\agy-sandbox\settings.json --home .\agy-sandbox\agyline
+.\target\release\agyline.exe status --settings .\agy-sandbox\settings.json --home .\agy-sandbox\agyline
+.\target\release\agyline.exe uninstall --settings .\agy-sandbox\settings.json --home .\agy-sandbox\agyline
 ```
 
-`subagentStatusLine` 可选，用来在每个后台任务下面绘制 ccline 的任务行。Windows 上同样可以用 `~`（Claude Code 2.1.47+）；如果是 npm 全局安装，也可以写 `"command": "ccline"`。
+请在三个命令中使用同一组路径。自定义 `--home` 不会自动改变之后独立启动进程的环境；日常运行 TUI 时也应设置对应的 `AGYLINE_HOME`。
 
-## 预置
+### 设置修改范围
 
-![预置](assets/presets.webp)
+安装仅管理顶层 `statusLine`，已支持的宿主字段为：
 
-| 预置 | 行数 | 外观 | 内容 |
-|---|---|---|---|
-| `cometix`（默认） | 1 | plain，终端配色 | 经典样式：模型、目录、git、上下文、缓存 |
-| `minimal` | 1 | plain，无图标 | 模型、上下文、缓存、费用 |
-| `dashboard` | 3 | pill，Catppuccin Mocha | 身份与 git；上下文、趋势、5 小时配速、缓存；代码改动 |
-| `budget` | 2 | plain，Tokyo Night | 5 小时与每周额度的配速和预计用完时间、花费速率；上下文、距自动压缩、缓存 |
-| `cache-aware` | 2 | plain，Rosé Pine | 常规一行；缓存倒计时条、命中率、未命中次数与原因 |
-| `focus` | 2 | plain，Unicode | 宽幅上下文条、每轮增量、距自动压缩、缓存 |
-| `zen` | 1 | ASCII，无色 | 任何终端都能用 |
-| `powerline` | 1 | powerline，Tokyo Night | powerline 段，带 5 小时额度图标 |
+- `type`：`"command"`。
+- `command`：安装器生成的稳定程序启动命令。Windows 无空格路径直接调用；含空格路径通过系统 PowerShell 的编码桥接调用，保持 UTF-8 输入输出，不从 PATH 查找启动器。
+- `padding`：**竖向留白**，不是水平缩进。
+- `enabled`：是否启用。
+- `stack_with_default`：是否与默认状态栏叠加。
 
-在配置器里可以应用整个预置，也可以只应用它的布局或只应用外观。在 Presets 页按 `N` 可以把当前设置另存为自己的预置，文件保存在 `~/.claude/ccline/presets/`。
+不生成 Claude Code 的 `subagentStatusLine`、`refreshInterval` 或配套 mod 设置。安装时保留已有 `statusLine` 的未知键以及所有无关设置。
 
-## 配置器
+### 备份、冲突与卸载
 
-运行 `ccline`（或 `ccline -c`）。共六页，用 `1`–`6` 切换；任何改动都会立刻显示在预览栏里，预览和真实状态栏用的是同一套渲染代码。
+- 修改已有设置文件前，保留同目录的 `settings.json.agyline-bak-*` 备份；原先没有设置文件时无需备份旧文件。备份可能包含宿主的其他设置，请勿随意上传。
+- `installation.json` 记录安装前的 `statusLine`、本工具写入的值和对应路径，不拿整份旧设置覆盖当前设置。
+- 卸载仅恢复最初的 `statusLine`；原先没有此键时移除此键。安装后新增的其他宿主设置继续保留。
+- 如果受管理的 `statusLine` 已被外部修改，或设置在审阅后发生变化，工具拒绝覆盖。先运行 `status`，人工核对当前值、恢复记录与备份，不要通过删除记录来强行绕过冲突保护。
+- AGY 保存配置时省略 `type: "command"`、`enabled: true`、`padding: 0` 或 `stack_with_default: false`，不算外部冲突；修改非默认值、启动命令或未知键仍受冲突保护。
+- `uninstall` 不删除稳定程序、配置和恢复记录，避免删除正在运行的 Windows 可执行文件，也便于排查。确认恢复完成后，是否另行清理由你决定。
 
-| 页面 | 作用 |
-|---|---|
-| 1 Home | 检查你的环境（Claude Code 版本、状态栏设置、`config.toml`、`models.toml`、更新），每个问题都配了修复按键；并用你最近一次真实会话显示状态栏 |
-| 2 Presets | 预置画廊，每张卡片都是实时渲染的 |
-| 3 Layout | 从指标库挑选指标，安排到各行和左右两侧，再细调选中的条目：形态、进度条字形与格数、文字模板、图标、颜色、阈值 |
-| 4 Style | 骨架、调色板、字形、色深、填充方式，以及在调色板之上的颜色覆盖 |
-| 5 Models | 模型登记表：最近会话里没认出的模型 id、你的规则及命中次数、解析测试器 |
-| 6 Claude Code | `statusLine`、`subagentStatusLine`、`refreshInterval`、更新检查、配套 mod |
+默认路径卸载示例：
 
-![Layout 页](assets/tui-layout.webp)
+```powershell
+& "$HOME\.gemini\antigravity-cli\agyline\agyline.exe" uninstall
+```
 
-图标选择器收录了 Nerd Fonts 3.5.1 的全部 10,617 个图标，可以按名称、类前缀（`md-`、`fa-`、`cod-` …）、码位搜索，也可以直接粘贴图标。
+安装与真实启动的本机验证已完成；卸载、恢复和冲突处理使用隔离目录自动测试，未为验收而中断用户现有集成。具体证据边界见下文。
 
-![图标选择器](assets/tui-icons.webp)
+## 八个预设与外观
 
-全局按键：`^S` 保存，`^Z` / `^Y` 撤销与重做，`^P` 命令面板，`[` `]` 切换示例会话，`-` `+` 调整预览宽度，`{` 色深，`}` 字形，`?` 帮助，`q` 退出。
+- `cometix`（默认）：经典**两行**；模型、目录、Git、上下文，以及订阅和原生 quota。
+- `minimal`：紧凑的一行，隐藏图标，显示模型、上下文和剩余额度。
+- `dashboard`：三行仪表盘，Catppuccin Mocha／pill，包含上下文趋势和宿主活动。
+- `budget`：两行、额度优先，Tokyo Night，显示原生 bucket 和重置信息，不假设固定周期。
+- `session`：两行、Rosé Pine，显示宿主状态、任务、执行模式与原生额度；它替代上游 `cache-aware`，不再声称有缓存 TTL。
+- `focus`：两行、宽上下文条、近期趋势和额度仪表。
+- `zen`：一行、ASCII、无颜色。
+- `powerline`：两行、Tokyo Night powerline 风格与原生额度仪表。
 
-## 指标
+皮肤：`plain`、`bracket`、`pill`、`powerline`。
 
-| 类目 | 指标 |
-|---|---|
-| 身份 | `model`（含推理强度）、`output_style`、`vim`、`agent` |
-| 会话 | `session_name`、`duration` |
-| 上下文 | `context`、`context.trend`、`context.to_compact`、`context.breakdown`¹ |
-| 额度 | `quota.5h`、`quota.7d`、`quota.spend`、`quota.eta` |
-| 费用 | `cost`、`cost.rate`（每小时）、`cost.today`（所有会话） |
-| 缓存 | `cache`（距变冷的时间、命中率、未命中）、`cache.cold_cost` |
-| 代码 | `dir`、`git`、`repo`、`pr`、`worktree`、`lines` |
-| 活动与计时 | `activity.tools`¹、`activity.agents`¹、`timing.ttft`¹、`timing.tps`¹ |
-| 系统 | `cc_version`、`update` |
-| 自定义 | `cmd`：任意 shell 命令输出的第一行，带缓存，在后台运行 |
+13 套配色：`terminal`、`catppuccin-mocha`、`catppuccin-latte`、`dracula`、`nord`、`tokyo-night`、`rose-pine`、`gruvbox`、`anthropic-clay`、`powerline-dark`、`powerline-light`、`powerline-rose-pine`、`powerline-tokyo-night`。
 
-¹ 需要配套 mod 和 Claude Code 2.1.287+。`cache` 与 `quota.spend` 需要 Claude Code 2.1.251+。配置器会标出你当前的 Claude Code 显示不了的指标，并且不允许添加。
+本文未嵌入上游截图。仓库已有 `assets/` 图片来自上游，只能作为上游设计参考，不能作为本 fork 在 AGY 中的真实运行效果或验证证据。
 
-条目只在有内容时才显示：Claude Code 报告了缓存才显示缓存，有新版本才显示 `update`，`output_style` 是默认风格时不显示。
+## TUI 配置器
 
-`quota.5h` 和 `quota.7d` 默认画成两行的配速条：上面一行是已用额度，下面一行是窗口时间过去了多少。`⇡8%` 表示用量比时间快 8 个百分点，`⇣` 表示比时间慢，`±0%` 表示持平。
+在交互终端运行 `agyline` 或 `agyline --config`。六个页面为 Home、Presets、Layout、Style、Models、Antigravity；保留上游 TUI 交互风格。
 
-后台任务行有自己的指标：`task.label`、`task.name`、`task.status`、`task.elapsed`、`task.trend`，也可以使用 `model`、`context` 等会话指标。
+按键以当前页面底部提示和 `?` 帮助为准：
 
-## 配置
+- 标签栏获得焦点时，左右箭头切换页面，向下箭头／Enter 进入页面。
+- 页面放弃焦点时，向上箭头／Esc 返回标签栏；页面内部用箭头导航，支持的页面用 Tab／Shift+Tab 切换控件或筛选项。**Tab 不是全局切页快捷键。**
+- **Ctrl+S 保存**，Ctrl+Z／Ctrl+Y 撤销／重做，Ctrl+P 打开命令面板。
+- `q` 请求退出，有未保存修改时按对话框选择；`?` 查看帮助。
+- `[`／`]` 切换预览样例，`-`／`+` 调整预览宽度，`{` 切换色深，`}` 切换字形。
 
-所有文件都在 `~/.claude/ccline/`（可用 `CCLINE_HOME` 改位置）。配置器写的是 `config.toml`，也可以手动编辑：
+**普通 `s` 不是全局保存键**；Home 页的 `s` 用于 AGY 设置操作。不要沿用“数字 1–6 切页”或“s 直接保存”的旧说明。
+
+### 手动配置示例
+
+TUI 写入 `AGYLINE_HOME/config.toml`（未设置环境变量时使用默认工具目录）。以下只是布局配置示例，不是实时会话输出：
 
 ```toml
-preset  = "cometix"
+preset = "cometix"
 palette = "terminal"
-skin    = "plain"
-glyphs  = "nerd"
+skin = "plain"
+glyphs = "unicode"
 separator = " | "
 
 [[line]]
-left = [
-  "model",
-  { metric = "dir", icon_color = "bright_yellow" },
-  "git",
-  { metric = "context", widget = "text", format = "{pct}%[ · {tokens} tokens]" },
-  "cache",
-]
-right = ["update"]
+left = ["model", "dir", "git", "context"]
 
 [[line]]
-left = [{ metric = "quota.5h", cells = 10 }, { metric = "quota.7d", cells = 10 }]
-right = [{ metric = "cmd", options = { run = "kubectl config current-context", cache_s = 30 } }]
+left = ["plan", { metric = "quota", cells = 8 }]
+right = ["state", "tasks"]
 ```
 
-每个 `[[line]]` 分 `left` 和 `right` 两组，右组贴右对齐。条目可以直接写指标 id，也可以写成表：
+`quota` 默认按原生 bucket 展开；也可以通过指标的 `options.bucket` 选择确切 bucket ID。只有 AGY 实际传入且指标支持的字段才参与渲染。模型登记表位于 `models.toml`，可从 Models 页编辑；不要把模型推断当成宿主未提供的额度或计费数据。
 
-| 键 | 含义 |
-|---|---|
-| `metric` | 指标 id |
-| `widget` | `text`、`bar`、`gauge`、`sparkline` 或 `pace` |
-| `bar`、`cells` | 进度条字形（`blocks`、`eighths`、`shapes`、`dots`、`braille`、`ascii`）和格数 |
-| `format`、`compact`、`minimal` | 三档文字模板：`{字段}` 插入数值，`[ … ]` 里只要有字段为空，整组就不显示 |
-| `icon` | 覆盖图标；`""` 表示不要图标 |
-| `color`、`fg`、`icon_color` | 调色板 token（`accent`、`warn`、`cache` …）、颜色名（`bright_yellow`）、`#rrggbb`、`256:n` 或 `16:n` |
-| `levels`、`coloring` | 警告阈值，如 `[[50, "warn"], [80, "crit"]]`；`steps`（整段变色）或 `gradient`（逐格渐变） |
-| `options` | 指标选项，例如 `dir` 的 `style`、`cmd` 的 `run` |
+## 样例、自动测试与真实 AGY 验证
 
-调色板：`terminal`（跟随终端主题）、`catppuccin-mocha`、`catppuccin-latte`、`dracula`、`nord`、`tokyo-night`、`rose-pine`、`gruvbox`、`anthropic-clay`，以及沿用 v1 powerline 配色的 `powerline-dark`、`powerline-light`、`powerline-rose-pine`、`powerline-tokyo-night`。自定义调色板放在 `palettes/*.toml`；`[palette_overrides]` 可以单独改某个 token。
+这三类证据必须区分：
 
-配置文件解析失败时状态栏不会空白：ccline 会用默认预置绘制，并在行尾加上 `! config`。
+**样例预览**：下列命令使用内置样例；可重复检查布局、低额度和启动期缺失字段的表现，不读取真实 AGY 会话。
 
-### 第三方模型
-
-Claude Code 对不认识的模型一律按 200k 窗口计算，所以第三方模型的上下文百分比可能不对。在 `models.toml` 里可以设置正确的名称和窗口：
-
-```toml
-[[models]]
-pattern = "kimi-k2"
-display_name = "Kimi K2"
-context_limit = 256000
-match = "contains"          # contains、prefix、exact 或 regex
-
-[[context_modifiers]]
-pattern = "[1m]"
-display_suffix = " 1M"
-context_limit = 1000000
+```sh
+agyline preview --scenario antigravity --width 100 --color none
+agyline preview --scenario agy-low-quota --width 100 --color none
+agyline preview --scenario agy-startup --width 100 --color none
+agyline preview --list
+agyline preview --all
 ```
 
-Models 页会列出最近出现过、但没有规则能认出的模型 id，按一个键就能为它新建规则。
+**自动测试**：下面是开发检查命令，不是“此机器已全部通过”的声明：
 
-## 配套 mod
-
-在 Claude Code 2.1.287+ 上，可以安装一个可选的 mod，把状态栏输入里没有的数据传给 ccline：首 token 延迟、输出速度、正在运行的工具和代理、上下文的构成，以及准确的自动压缩点。mod 本身不绘制任何界面。
-
-```bash
-ccline mod install     # 也可以在 Claude Code 页安装
-ccline mod status
-ccline mod uninstall
+```sh
+cargo test --locked --all-targets
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+cargo build --release --locked
+python -m unittest discover -s scripts -p test_verification.py -v
 ```
 
-要让这些数值实时刷新，需要 Claude Code 定时重绘状态栏：在 Claude Code 页把 `refreshInterval` 设为 2 秒。
+CI 配置对 Windows／macOS／Linux 运行测试，并执行格式与 Clippy 检查。持续集成结果以对应工作流的实际运行记录为准；下列计数仅记录本次本机验收。
 
-## 命令
+**2026-11-20 本机验收**：Windows 上通过 252 项 Rust 测试、3 项验证脚本回归测试、格式检查、严格 Clippy 与发布构建。真实 Antigravity CLI 1.5.13 在 132 列终端中提供原生数据和 5 个 quota bucket；临时会话配置及持久安装两条链路均检测到剩余额度文本，没有发送模型请求，也未在启动验证期间改写持久设置。安装更新验证了二进制与构建产物一致、无关设置保留；首次修复写入前创建了原字节备份，随后重复安装无需改写设置。
 
-| 命令 | 说明 |
-|---|---|
-| `ccline` | 在终端里运行时打开配置器；Claude Code 通过管道传入会话数据时绘制状态栏 |
-| `ccline preview` | 用内置示例会话渲染你的配置（`--all`、`-s <名称或 JSON 文件>`、`--subagent`、`--list`） |
-| `ccline update` | 立即检查新版本。ccline 平时每天在后台检查一次，有新版本时显示 `update`；它从不自行下载 |
-| `ccline mod` | 安装、更新或移除配套 mod |
+截图助手不可用，**没有完成桌面截图、图标字体和最终重绘效果的视觉验收**。macOS／Linux 已配置 CI，但本轮没有在这些系统运行，也没有推送或触发远程工作流。卸载／恢复／冲突验证来自隔离自动测试，不冒充真实用户设置的卸载实测。详见 [验收记录](docs/verification/2026-11-20-agyline.md)。
 
-## 环境要求
+可选真实宿主诊断脚本 `scripts/verify_agy_host.py` 需要 Windows 及隔离环境中的 `pywinpty`。它默认用临时 `--settings` 覆盖，只保存白名单处理后的诊断输入及布尔摘要，不记录原始终端横幅；产物放在 Git 忽略的 `local/`，仍不应公开上传。`scripts/verify_local_install.py --apply` 会修改持久集成，只有明确需要更新安装时才使用。
 
-- Claude Code 2.1.153 或更新；部分指标需要更新的版本，见上文。
-- 显示图标、powerline 和 pill 需要 [Nerd Font](https://www.nerdfonts.com/)。没有的话可以用 `unicode` 或 `ascii` 字形，配置器的字体检查会帮你选择。
-- `git` 指标需要安装 Git。
+## 分发状态
 
-## 从 v1 升级
+- 当前只支持本地／源码安装，没有已确认的新远程、npm 命名空间或正式下载地址。
+- `npm/` 保留为私有本地辅助入口，所有包均设置 `private: true`，没有上游二进制依赖，不支持通过它下载或发布本 fork。
+- 旧 postinstall 仅提示，不创建目录、不复制二进制、不改宿主设置。历史文件名 `npm/main/bin/ccline.js` 现在只转发给已安装的本 fork `agyline`，不会查找 `.claude`、调用上游包或退回 PATH 上的同名程序。
+- `prepare-packages.js` 无论参数如何都失败关闭，不生成发布目录。不要把上游 npm 包或发布流水线当作 fork 的安装通道。
+- `.github/workflows/release.yml` 仅允许手动触发，使用只读仓库权限，在 Windows／macOS／Linux 构建以 `agyline` 命名的 workflow artifact；不创建 GitHub Release、不执行 npm 发布。artifact 不是已经公开发布的产品版本。
 
-v2 是重写版，配置格式全新，不读取 v1 的 `config.toml` 和主题。在配置器里选一个预置开始即可；默认的 `cometix` 保留了 v1 的样子。`models.toml` 原样沿用。`--theme` 和 Claude Code 补丁功能已移除。
+## 上游与许可状态
 
-## 开发
+上游项目：[Haleclipse/CCometixLine](https://github.com/Haleclipse/CCometixLine)。本 fork 的基线固定为提交 [`1749ff85b52d8d10e67e0a04d247ceab768f380f`](https://github.com/Haleclipse/CCometixLine/tree/1749ff85b52d8d10e67e0a04d247ceab768f380f)。保留并感谢其 Rust 实现、渲染器、TUI、预设和外观设计。
 
-```bash
-cargo build
-cargo test             # 单元测试，以及每个预置在每个示例会话下的快照
-cargo build --release
-```
-
-## 相关项目
-
-- [tweakcc](https://github.com/Piebald-AI/tweakcc)：自定义 Claude Code 的主题、思考动词等。
-
-## 许可证
-
-[MIT](LICENSE)
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Haleclipse/CCometixLine&type=Date)](https://star-history.com/#Haleclipse/CCometixLine&Date)
+上游 README 与 Cargo 元数据声明 MIT，但固定基线的源码树未附独立 `LICENSE` 文件。本仓库如实记录这一缺口，不伪造许可证正文、版权年份或 fork 作者身份，也不把本声明当作完整授权证明。来源、保留资源及对外再分发前需核实的事项见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。

@@ -1,47 +1,30 @@
-# @cometix/ccline
+# agyline 私有本地辅助入口
 
-A fast, composable status line for Claude Code, written in Rust, with a full-screen configurator.
+完整说明见仓库的 [中文主文档](../../README.zh.md)；[English quick start](../../README.md)。
 
-![CCometixLine in Claude Code](https://raw.githubusercontent.com/Haleclipse/CCometixLine/master/assets/hero.webp)
+此目录不是已发布的 npm 产品。新 GitHub 远程和 npm 命名空间尚未确定，所有 `npm/` 包均为 `private: true`。`@cometix/ccline` 属于上游，不能用作 agyline 的安装源；本目录没有平台包依赖或远程二进制下载。
 
-- Model and effort, directory, git, context use, prompt cache countdown and hit ratio, 5-hour and weekly limits with your pace, cost, PR and more: 30+ metrics
-- Text, bars, gauges, sparklines and pace bars, on as many lines as you like, wrapping to fit the terminal
-- Four skins, 13 palettes, Nerd Font, Unicode or ASCII glyphs, and eight presets to start from
-- A configurator with a live preview that also points Claude Code at ccline for you
+## 先构建并安装本 fork
 
-## Install
+在仓库根目录执行：
 
-```bash
-npm install -g @cometix/ccline
+```sh
+cargo build --release --locked
 ```
 
-In China, the npm mirror is faster:
+随后在 Windows 运行 `target/release/agyline.exe install`，在 macOS／Linux 运行 `./target/release/agyline install`。需要 Rust 1.89 或更新版本。完整的路径覆盖、备份与卸载说明见主文档。
 
-```bash
-npm install -g @cometix/ccline --registry https://registry.npmmirror.com
+## 可选：直接使用本地 helper
+
+无需 npm 安装。在仓库根目录执行：
+
+```sh
+node npm/main/bin/ccline.js --help
+node npm/main/bin/ccline.js preview --scenario antigravity --width 100 --color none
 ```
 
-The binary goes to `~/.claude/ccline/ccline`, and `ccline` is on your PATH.
+`ccline.js` 仅保留历史文件名；本地包的可选 bin 名为 `agyline-local`，不是上游 `ccline`，也不遮蔽真实 `agyline`。
 
-## Set up
+helper 只运行 `AGYLINE_HOME` 目录中的 `agyline.exe`（Windows）或 `agyline`（Unix）；未设置时使用 `~/.gemini/antigravity-cli/agyline/`。它传递参数、继承终端并保留正常子进程退出码。程序缺失、启动失败或被信号终止均返回失败，不下载、不复制、不扫描 `.claude`、不寻找上游包、不回退 PATH。`AGY_CONFIG_DIR` 不会改变 helper 的可执行文件位置。
 
-Run `ccline` in a terminal: the first run picks a preset and connects Claude Code. Or add this to `~/.claude/settings.json`:
-
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline",
-    "padding": 0
-  }
-}
-```
-
-Requires Claude Code 2.1.153 or newer. Update with `npm update -g @cometix/ccline`.
-
-## More
-
-- Full documentation: https://github.com/Haleclipse/CCometixLine
-- 中文说明: https://github.com/Haleclipse/CCometixLine/blob/master/README.zh.md
-- Issues: https://github.com/Haleclipse/CCometixLine/issues
-- License: MIT
+旧 `postinstall.js` 仅输出提示，不做安装或设置修改。`npm/scripts/prepare-packages.js` 始终返回失败，不生成发布目录；平台目录仅为私有占位元数据，不包含可用的预编译包。不要把这些包名写成公开 npm 安装命令。

@@ -1,273 +1,89 @@
-# CCometixLine
+# agyline
 
-[English](README.md) | [中文](README.zh.md)
+[中文主文档](README.zh.md) | English quick start
 
-A fast, composable status line for Claude Code, written in Rust, with a full-screen configurator.
+A Rust status line for **Antigravity CLI (AGY)**, forked from CCometixLine. It keeps the upstream renderer and full-screen TUI while adapting the input protocol and reversible host integration to AGY.
 
-![Language:Rust](https://img.shields.io/static/v1?label=Language&message=Rust&color=orange&style=flat-square)
-![License:MIT](https://img.shields.io/static/v1?label=License&message=MIT&color=blue&style=flat-square)
+**Version: 0.1.0. Source/local installation only.** A fork repository URL and npm namespace have not been selected. No published npm package or downloadable fork release is advertised. `@cometix/ccline` belongs to the upstream project and is not agyline.
 
-![CCometixLine in Claude Code](assets/hero.webp)
+## Build and connect locally
 
-## Highlights
+Requires Rust **1.89 or newer**. In a local checkout of this fork:
 
-- **Your session at a glance**: model and effort, directory, git, context use, prompt cache countdown and hit ratio, the 5-hour and weekly limits with your pace against the clock, cost, PR and more: 30+ metrics in all.
-- **Any metric, any form**: each item can be text, a progress bar, a gauge, a sparkline or a pace bar, with three text templates for when room runs short.
-- **Fits the terminal**: lines wrap between items when the terminal is narrow; a right-hand group stays flush right.
-- **Looks**: four skins (plain, bracket, pill, powerline), 13 palettes that follow your terminal's colors or bring their own, Nerd Font, Unicode or ASCII glyphs, and color depth from truecolor down to none.
-- **Eight presets** to start from, and your own saved alongside them.
-- **A configurator** that edits everything with a live preview of sample sessions, and points Claude Code at ccline for you.
-- **Accurate for third-party models**: a model registry fixes names and context windows Claude Code can't know.
-- **Background tasks**: the same binary draws the line under each running subagent.
-- **Light**: a render costs a few milliseconds over process start; git runs in the background, never on the render path.
-
-## Install
-
-```bash
-npm install -g @cometix/ccline
+```sh
+cargo build --release --locked
 ```
 
-<details>
-<summary>yarn, pnpm, the npm mirror</summary>
+The Cargo package is still named `ccometixline`; the public binary is **`agyline`** (`agyline.exe` on Windows).
 
-```bash
-yarn global add @cometix/ccline
-pnpm add -g @cometix/ccline
-npm install -g @cometix/ccline --registry https://registry.npmmirror.com
+Windows PowerShell:
+
+```powershell
+.\target\release\agyline.exe preview --scenario antigravity --width 100 --color none
+.\target\release\agyline.exe install
+.\target\release\agyline.exe status
 ```
 
-</details>
+macOS / Linux:
 
-The package puts the binary at `~/.claude/ccline/ccline` and the `ccline` command on your PATH. To update later: `npm update -g @cometix/ccline`.
-
-<details>
-<summary>Manual download</summary>
-
-Download the archive for your platform from [Releases](https://github.com/Haleclipse/CCometixLine/releases) and put the binary at `~/.claude/ccline/ccline` (`ccline.exe` on Windows).
-
-| Platform | Archive |
-|---|---|
-| Linux x64 (glibc 2.35+) | `ccline-linux-x64.tar.gz` |
-| Linux x64, static | `ccline-linux-x64-static.tar.gz` |
-| Linux arm64 | `ccline-linux-arm64.tar.gz` |
-| Linux arm64, static | `ccline-linux-arm64-static.tar.gz` |
-| macOS Intel | `ccline-macos-x64.tar.gz` |
-| macOS Apple Silicon | `ccline-macos-arm64.tar.gz` |
-| Windows x64 | `ccline-windows-x64.zip` |
-
-```bash
-mkdir -p ~/.claude/ccline
-tar -xzf ccline-macos-arm64.tar.gz
-mv ccline ~/.claude/ccline/ && chmod +x ~/.claude/ccline/ccline
+```sh
+./target/release/agyline preview --scenario antigravity --width 100 --color none
+./target/release/agyline install
+./target/release/agyline status
 ```
 
-</details>
+Installation copies this executable to `~/.gemini/antigravity-cli/agyline/agyline.exe` on Windows, or the same directory with filename `agyline` on Unix. It then connects AGY's `statusLine` to that stable path; a global PATH entry is not created. Run the stable executable directly to open the TUI in a terminal, or pass `--config`.
 
-<details>
-<summary>Build from source</summary>
+`AGYLINE_HOME` overrides the tool directory. `AGY_CONFIG_DIR` separately overrides the host directory containing `settings.json`; it does not move the tool directory. All three integration commands accept `--settings <path>` and `--home <path>`. Reuse the same paths when checking or uninstalling:
 
-```bash
-git clone https://github.com/Haleclipse/CCometixLine.git
-cd CCometixLine
-cargo build --release
-mkdir -p ~/.claude/ccline
-cp target/release/ccometixline ~/.claude/ccline/ccline
+```sh
+./target/release/agyline uninstall
 ```
 
-</details>
+An existing settings file is backed up before changes. Uninstall restores **only the original `statusLine`**, not the entire settings file; unrelated settings are retained. Unknown keys are preserved on installation. If the managed `statusLine` was changed externally, the tool refuses to overwrite it. Uninstall keeps the executable and recovery files rather than deleting them.
 
-## Set up Claude Code
+AGY may omit documented default fields when saving settings; this alone is not an ownership conflict. Non-default values, commands and unknown keys remain protected. On Windows, paths without spaces run directly; spaced paths use the absolute system PowerShell with separately encoded path data and UTF-8 streams, never a launcher resolved through PATH.
 
-Run `ccline` in a terminal. The first run walks you through checking your font, picking a preset and pointing Claude Code at ccline; the **Claude Code** page shows the change to `settings.json` before writing it, and keeps a backup.
+## Native data, not invented windows
 
-Or edit `~/.claude/settings.json` yourself:
+- Native quota is a dynamic collection of named buckets: remaining fraction or amount, reset information, and explicit `unknown` / `disabled` states.
+- Costs marked `~` are **estimates, not billing records**.
+- Unreported fields are hidden or represented as unknown. AGY does not provide a reliable fixed 5-hour / 7-day window, cache TTL, or auto-compaction threshold here; agyline does not invent them.
+- No credential-file access, model calls, or `agy.exe` patching is required. User-configured custom command metrics run the commands you explicitly choose.
 
-```json
-{
-  "statusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline",
-    "padding": 0
-  },
-  "subagentStatusLine": {
-    "type": "command",
-    "command": "~/.claude/ccline/ccline"
-  }
-}
+The default `cometix` preset uses the classic **two-row** layout. The other presets are `minimal`, `dashboard`, `budget`, `session` (Rosé Pine, replacing `cache-aware`), `focus`, `zen`, and `powerline`. Four skins and 13 palettes are retained. Nerd Fonts improve icon rendering; Unicode / ASCII options are available.
+
+TUI: arrows navigate; left/right switch focused tabs, down/Enter enters a page, and up/Esc returns to the tabs when the page yields focus. Tab switches controls within supported pages. **Ctrl+S** saves, **q** requests exit, and **?** opens help. Plain `s` is not a global save shortcut. See the [Chinese guide](README.zh.md) for configuration and recovery details.
+
+## Preview and validation boundaries
+
+```sh
+agyline preview --scenario antigravity --width 100 --color none
+agyline preview --scenario agy-low-quota --width 100 --color none
+agyline preview --scenario agy-startup --width 100 --color none
+agyline preview --list
+agyline preview --all
 ```
 
-`subagentStatusLine` is optional: it draws ccline's line under each background task. `~` works on Windows too (Claude Code 2.1.47+); with a global npm install, `"command": "ccline"` also works.
+These examples assume the stable executable is on your PATH; otherwise use its full path. Previews use **sample input**, not a live AGY session. No upstream screenshot is presented as a screenshot of this fork.
 
-## Presets
+For automated checks:
 
-![Presets](assets/presets.webp)
-
-| Preset | Lines | Look | What it shows |
-|---|---|---|---|
-| `cometix` (default) | 1 | plain, terminal colors | Classic look: model, directory, git, context and cache |
-| `minimal` | 1 | plain, no icons | Model, context, cache and cost |
-| `dashboard` | 3 | pill, Catppuccin Mocha | Identity and git; context, its trend, 5-hour pace and cache; code activity |
-| `budget` | 2 | plain, Tokyo Night | 5-hour and weekly limits with pace and run-out, spend rates; context, compaction and cache |
-| `cache-aware` | 2 | plain, Rosé Pine | The usual line; cache countdown bar, hit ratio, misses and their cause |
-| `focus` | 2 | plain, Unicode | A wide context gauge, growth per turn, room before compaction, cache |
-| `zen` | 1 | ASCII, no color | Works in any terminal |
-| `powerline` | 1 | powerline, Tokyo Night | Powerline segments with a 5-hour gauge |
-
-Apply one in the configurator: all of it, only its layout, or only its look. Save your own setup as a preset with `N` on the Presets page; it is a file in `~/.claude/ccline/presets/`.
-
-## The configurator
-
-Run `ccline` (or `ccline -c`). Six pages, switched with `1`–`6`; every change shows at once in the preview bar, drawn by the same code as the real status line.
-
-| Page | What it does |
-|---|---|
-| 1 Home | Checks your setup (Claude Code version, its status line settings, `config.toml`, `models.toml`, updates) with a key to fix each problem, and shows your line with your last real session |
-| 2 Presets | The gallery, each card rendered live |
-| 3 Layout | Pick metrics from the library, arrange them on lines and sides, and tune the selected item: form, bar glyphs and cells, templates, icon, colors, thresholds |
-| 4 Style | Skin, palette, glyphs, color depth, fill, and color overrides on top of the palette |
-| 5 Models | The model registry: unrecognized ids from recent sessions, your rules with hit counts, and a tester |
-| 6 Claude Code | `statusLine`, `subagentStatusLine` and `refreshInterval`, update checks, the companion mod |
-
-![Layout page](assets/tui-layout.webp)
-
-The icon picker covers all 10,617 icons of Nerd Fonts 3.5.1, searchable by name, class (`md-`, `fa-`, `cod-` …), codepoint or a pasted glyph.
-
-![Icon picker](assets/tui-icons.webp)
-
-Keys everywhere: `^S` save, `^Z` / `^Y` undo and redo, `^P` command palette, `[` `]` sample session, `-` `+` preview width, `{` color depth, `}` glyphs, `?` help, `q` quit.
-
-## Metrics
-
-| Category | Metrics |
-|---|---|
-| Identity | `model` (with reasoning effort), `output_style`, `vim`, `agent` |
-| Session | `session_name`, `duration` |
-| Context | `context`, `context.trend`, `context.to_compact`, `context.breakdown`¹ |
-| Quota | `quota.5h`, `quota.7d`, `quota.spend`, `quota.eta` |
-| Cost | `cost`, `cost.rate` (per hour), `cost.today` (all sessions) |
-| Cache | `cache` (time until cold, hit ratio, misses), `cache.cold_cost` |
-| Code | `dir`, `git`, `repo`, `pr`, `worktree`, `lines` |
-| Activity, timing | `activity.tools`¹, `activity.agents`¹, `timing.ttft`¹, `timing.tps`¹ |
-| System | `cc_version`, `update` |
-| Custom | `cmd`: the first line of any shell command, cached and run in the background |
-
-¹ Needs the companion mod and Claude Code 2.1.287+. `cache` and `quota.spend` need Claude Code 2.1.251+. The configurator marks what your Claude Code can't show and won't let you add it.
-
-Items show only when they have something to say: the cache when Claude Code reports one, the update when a newer ccline is out, `output_style` unless it is the default.
-
-`quota.5h` and `quota.7d` draw a two-row pace bar by default: the upper row is what you have used, the lower row how much of the window has passed. `⇡8%` means you are 8 points ahead of the clock, `⇣` behind, `±0%` on pace.
-
-Background task lines have their own metrics: `task.label`, `task.name`, `task.status`, `task.elapsed` and `task.trend`, next to session metrics such as `model` and `context`.
-
-## Configuration
-
-Everything lives in `~/.claude/ccline/` (`CCLINE_HOME` moves it). The configurator writes `config.toml`; you can edit it by hand too:
-
-```toml
-preset  = "cometix"
-palette = "terminal"
-skin    = "plain"
-glyphs  = "nerd"
-separator = " | "
-
-[[line]]
-left = [
-  "model",
-  { metric = "dir", icon_color = "bright_yellow" },
-  "git",
-  { metric = "context", widget = "text", format = "{pct}%[ · {tokens} tokens]" },
-  "cache",
-]
-right = ["update"]
-
-[[line]]
-left = [{ metric = "quota.5h", cells = 10 }, { metric = "quota.7d", cells = 10 }]
-right = [{ metric = "cmd", options = { run = "kubectl config current-context", cache_s = 30 } }]
+```sh
+cargo test --locked --all-targets
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+python -m unittest discover -s scripts -p test_verification.py -v
 ```
 
-Each `[[line]]` has a `left` and a `right` group; the right one is flush right. An item is a metric id, or a table:
+CI defines Windows, macOS and Linux tests. `release.yml` is manual-only and builds workflow artifacts; it does **not** create a GitHub Release or publish to npm. These configurations and sample previews are not evidence of a completed remote workflow run.
 
-| Key | Meaning |
-|---|---|
-| `metric` | Metric id |
-| `widget` | `text`, `bar`, `gauge`, `sparkline` or `pace` |
-| `bar`, `cells` | Bar glyphs (`blocks`, `eighths`, `shapes`, `dots`, `braille`, `ascii`) and length |
-| `format`, `compact`, `minimal` | Text templates: `{field}` inserts a value, `[ … ]` drops its contents when a field inside is empty |
-| `icon` | Icon override; `""` for none |
-| `color`, `fg`, `icon_color` | A palette token (`accent`, `warn`, `cache` …), a color name (`bright_yellow`), `#rrggbb`, `256:n` or `16:n` |
-| `levels`, `coloring` | Warning thresholds such as `[[50, "warn"], [80, "crit"]]`; `steps` or `gradient` |
-| `options` | Metric options, such as `dir`'s `style` or `cmd`'s `run` |
+**Local verification on November 20, 2026:** Windows passed 252 Rust tests, 3 verifier regressions, formatting, strict Clippy and a release build. Antigravity CLI 1.5.13 supplied a native payload containing five quota buckets at 132 columns. Both session overrides and the persistent installation produced remaining-quota text without sending a model prompt or modifying persistent settings during startup checks. Installation preserved unrelated settings and verified the stable executable against the build.
 
-Palettes: `terminal` (follows your terminal theme), `catppuccin-mocha`, `catppuccin-latte`, `dracula`, `nord`, `tokyo-night`, `rose-pine`, `gruvbox`, `anthropic-clay`, and v1's powerline colors as `powerline-dark`, `powerline-light`, `powerline-rose-pine` and `powerline-tokyo-night`. Your own go in `palettes/*.toml`; `[palette_overrides]` changes single tokens.
+**Boundaries:** desktop screenshot/font/repaint inspection remains unverified because the screenshot helper was unavailable. Linux/macOS and remote CI were not run in this session. Restore and conflict handling were verified in isolated tests, not by uninstalling the user's active integration. See the [verification record](docs/verification/2026-11-20-agyline.md). Optional `scripts/verify_agy_host.py` requires Windows and an isolated `pywinpty` environment; it keeps diagnostic files under ignored `local/` and does not record raw terminal banners. Do not publish local captures or backups.
 
-A config that fails to parse never blanks the status line: ccline draws the default preset and adds `! config` at the end.
+## Origin and license status
 
-### Third-party models
+Upstream: [Haleclipse/CCometixLine](https://github.com/Haleclipse/CCometixLine), pinned at [`1749ff85b52d8d10e67e0a04d247ceab768f380f`](https://github.com/Haleclipse/CCometixLine/tree/1749ff85b52d8d10e67e0a04d247ceab768f380f).
 
-Claude Code assumes a 200k window for models it doesn't know, so the context percentage of a third-party model can be wrong. `models.toml` sets the right name and window:
-
-```toml
-[[models]]
-pattern = "kimi-k2"
-display_name = "Kimi K2"
-context_limit = 256000
-match = "contains"          # contains, prefix, exact or regex
-
-[[context_modifiers]]
-pattern = "[1m]"
-display_suffix = " 1M"
-context_limit = 1000000
-```
-
-The Models page lists the ids it has seen that nothing recognizes, so you can add a rule with one key.
-
-## Companion mod
-
-On Claude Code 2.1.287+ an optional mod passes ccline what the status line input lacks: time to first token, output speed, running tools and agents, what fills the context, and the exact auto-compact point. It draws nothing itself.
-
-```bash
-ccline mod install     # or from the Claude Code page
-ccline mod status
-ccline mod uninstall
-```
-
-Live values need Claude Code to redraw the status line on a timer: set `refreshInterval` to 2 seconds on the Claude Code page.
-
-## Commands
-
-| Command | |
-|---|---|
-| `ccline` | Opens the configurator in a terminal; renders the status line when Claude Code pipes it a session |
-| `ccline preview` | Renders your config with the built-in sample sessions (`--all`, `-s <name or JSON file>`, `--subagent`, `--list`) |
-| `ccline update` | Checks for a newer version now. ccline also checks once a day in the background and shows `update` when one is out; it never downloads anything |
-| `ccline mod` | Installs, updates or removes the companion mod |
-
-## Requirements
-
-- Claude Code 2.1.153 or newer; some metrics need newer, see above.
-- A [Nerd Font](https://www.nerdfonts.com/) for icons, powerline and pills. Without one, use the `unicode` or `ascii` glyphs: the configurator's font check helps you choose.
-- Git, for the `git` metric.
-
-## Upgrading from v1
-
-v2 is a rewrite with a new config format; it doesn't read v1's `config.toml` or themes. Pick a preset in the configurator to start, or `cometix`, the default, which keeps v1's look. `models.toml` carries over unchanged. `--theme` and the Claude Code patcher are gone.
-
-## Development
-
-```bash
-cargo build
-cargo test             # unit tests and snapshots of every preset in every sample session
-cargo build --release
-```
-
-## Related projects
-
-- [tweakcc](https://github.com/Piebald-AI/tweakcc): customize Claude Code's themes, thinking verbs and more.
-
-## License
-
-[MIT](LICENSE)
-
-## Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=Haleclipse/CCometixLine&type=Date)](https://star-history.com/#Haleclipse/CCometixLine&Date)
+Upstream README and Cargo metadata declare MIT, but no standalone `LICENSE` was present in the pinned tree. This fork records that gap rather than inventing a license text or copyright notice. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for attribution, retained assets, and the outstanding licensing check before redistribution.

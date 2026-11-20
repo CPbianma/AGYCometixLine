@@ -1,14 +1,9 @@
 {
-  "name": "@cometix/ccline-darwin-x64",
-  "version": "0.0.0",
-  "description": "macOS x64 binary for CCometixLine",
-  "files": ["ccline"],
+  "name": "agyline-local-darwin-x64",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private macOS x64 placeholder; no agyline binary is distributed",
+  "files": [],
   "os": ["darwin"],
-  "cpu": ["x64"],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Haleclipse/CCometixLine"
-  },
-  "author": "Haleclipse",
-  "license": "MIT"
+  "cpu": ["x64"]
 }

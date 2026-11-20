@@ -1,14 +1,9 @@
 {
-  "name": "@cometix/ccline-linux-x64-musl",
-  "version": "0.0.0",
-  "description": "Linux x64 static binary for CCometixLine (musl libc)",
-  "files": ["ccline"],
+  "name": "agyline-local-linux-x64-musl",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private Linux x64 musl placeholder; no agyline binary is distributed",
+  "files": [],
   "os": ["linux"],
-  "cpu": ["x64"],
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Haleclipse/CCometixLine"
-  },
-  "author": "Haleclipse",
-  "license": "MIT"
+  "cpu": ["x64"]
 }

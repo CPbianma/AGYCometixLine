@@ -1,30 +1,16 @@
 {
-  "name": "@cometix/ccline",
-  "version": "0.0.0",
-  "description": "CCometixLine - High-performance Claude Code StatusLine tool",
+  "name": "agyline-local-helper",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Private local helper for an already installed agyline; no binary downloads",
   "bin": {
-    "ccline": "./bin/ccline.js"
+    "agyline-local": "./bin/ccline.js"
   },
   "scripts": {
     "postinstall": "node scripts/postinstall.js"
   },
-  "optionalDependencies": {
-    "@cometix/ccline-darwin-x64": "0.0.0",
-    "@cometix/ccline-darwin-arm64": "0.0.0",
-    "@cometix/ccline-linux-x64": "0.0.0",
-    "@cometix/ccline-linux-x64-musl": "0.0.0",
-    "@cometix/ccline-linux-arm64": "0.0.0",
-    "@cometix/ccline-linux-arm64-musl": "0.0.0",
-    "@cometix/ccline-win32-x64": "0.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/Haleclipse/CCometixLine"
-  },
-  "keywords": ["claude", "statusline", "claude-code", "rust", "cli"],
-  "author": "Haleclipse",
-  "license": "MIT",
+  "keywords": ["antigravity", "statusline", "rust", "agyline", "local-only"],
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=18.0.0"
   }
 }
