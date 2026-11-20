@@ -9,5 +9,7 @@ PRD.md
 # insta snapshots pending review
 *.snap.new
 
-# Design notes stay local
-/docs/
+# Local runtime captures and credentials must never enter version control.
+/local/
+/dist/
+*.agyline-bak*
