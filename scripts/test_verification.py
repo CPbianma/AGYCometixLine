@@ -14,6 +14,40 @@ import unittest
 import verify_agy_host
 
 
+class HostEvidenceTests(unittest.TestCase):
+    def test_repeated_checks_do_not_reuse_or_remove_earlier_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            requested = Path(temporary) / "checks"
+            first = verify_agy_host.reserve_output_directory(requested)
+            capture = first / "payload.json"
+            capture.write_text("first run", encoding="utf-8")
+            second = verify_agy_host.reserve_output_directory(requested)
+            third = verify_agy_host.reserve_output_directory(requested)
+            self.assertEqual(first, requested.resolve())
+            self.assertEqual(len({first, second, third}), 3)
+            self.assertFalse((second / "payload.json").exists())
+            self.assertEqual(capture.read_text(encoding="utf-8"), "first run")
+
+    def test_session_requires_native_quota_and_terminal_output(self) -> None:
+        native = {"product": "antigravity", "quota": {"dynamic-id": {"remaining_fraction": 0}}}
+        for snapshot, quota_visible, expected in [
+            (native, False, False), (native, True, True), (None, True, False),
+            ({"product": "antigravity", "quota": {}}, True, False),
+            ({"product": "other", "quota": native["quota"]}, True, False),
+        ]:
+            with self.subTest(snapshot=snapshot, quota_visible=quota_visible):
+                self.assertEqual(verify_agy_host.has_quota_evidence(
+                    installed=False, snapshot=snapshot, quota_visible=quota_visible,
+                ), expected)
+
+    def test_persistent_check_needs_output_but_has_no_capture(self) -> None:
+        for quota_visible in [True, False]:
+            with self.subTest(quota_visible=quota_visible):
+                self.assertEqual(verify_agy_host.has_quota_evidence(
+                    installed=True, snapshot=None, quota_visible=quota_visible,
+                ), quota_visible)
+
+
 class CallbackCommandTests(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows host callback contract")
     def test_callback_encodes_special_paths_and_preserves_utf8_streams(self) -> None:

@@ -15,8 +15,32 @@ import json
 import os
 from pathlib import Path
 import subprocess
+import sys
+import tempfile
 import threading
 import time
+
+
+def has_quota_evidence(*, installed: bool, snapshot: object, quota_visible: bool) -> bool:
+    """This smoke test checks a quota-displaying layout, not every valid layout."""
+    if not quota_visible:
+        return False
+    if installed:
+        return True  # Persistent mode deliberately does not capture a payload.
+    if not isinstance(snapshot, dict) or snapshot.get("product") != "antigravity":
+        return False
+    buckets = snapshot.get("quota")
+    return isinstance(buckets, dict) and bool(buckets)
+
+
+def reserve_output_directory(requested: Path) -> Path:
+    directory = requested.resolve()
+    try:
+        directory.mkdir(parents=True, exist_ok=False)
+    except FileExistsError:
+        # Never delete or consume a payload left by another session.
+        return Path(tempfile.mkdtemp(prefix="run-", dir=directory))
+    return directory
 
 
 def callback_command(binary: Path, capture_path: Path) -> str:
@@ -66,10 +90,9 @@ def main() -> int:
 
     binary = arguments.binary.resolve(strict=True)
     launcher = arguments.launcher.resolve(strict=True)
-    output_directory = arguments.output.resolve()
-    output_directory.mkdir(parents=True, exist_ok=True)
+    output_directory = reserve_output_directory(arguments.output)
+    print(f"Diagnostic directory: {output_directory}", file=sys.stderr)
     capture_path = output_directory / "payload.json"
-    capture_path.unlink(missing_ok=True)
     settings_path = output_directory / "session-settings.json"
     if not arguments.installed:
         settings_path.write_text(json.dumps({
@@ -120,30 +143,22 @@ def main() -> int:
     try:
         deadline = time.monotonic() + arguments.timeout
         while time.monotonic() < deadline and process.isalive():
-            if arguments.installed:
-                if "% left" in "".join(output_chunks):
-                    time.sleep(2)
-                    break
-                time.sleep(0.25)
-                continue
-            try:
-                snapshot = json.loads(capture_path.read_text(encoding="utf-8"))
-            except (FileNotFoundError, json.JSONDecodeError, PermissionError):
-                time.sleep(0.25)
-                continue
-            if snapshot.get("model") and snapshot.get("quota"):
-                time.sleep(2)
+            if not arguments.installed:
                 try:
-                    snapshot = json.loads(capture_path.read_text(encoding="utf-8"))
+                    candidate = json.loads(capture_path.read_text(encoding="utf-8"))
+                    snapshot = candidate if isinstance(candidate, dict) else None
                 except (FileNotFoundError, json.JSONDecodeError, PermissionError):
                     pass
+            if has_quota_evidence(installed=arguments.installed, snapshot=snapshot,
+                                  quota_visible="% left" in "".join(output_chunks)):
+                time.sleep(2)
                 break
             time.sleep(0.25)
 
         terminal_output = "".join(output_chunks)
         summary = {
             "verification_mode": "persistent settings" if arguments.installed else "session override",
-            "native_payload_received": None if arguments.installed else snapshot is not None,
+            "native_payload_received": None if arguments.installed else (snapshot or {}).get("product") == "antigravity",
             "model_prompt_sent": False,
             "screenshot_verified": False,
             "remaining_quota_text_observed": "% left" in terminal_output,
@@ -177,7 +192,8 @@ def main() -> int:
     summary["persistent_settings_changed"] = settings_before != settings_digest()
     (output_directory / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
-    verified = summary["remaining_quota_text_observed"] if arguments.installed else snapshot is not None
+    verified = has_quota_evidence(installed=arguments.installed, snapshot=snapshot,
+                                  quota_visible=summary["remaining_quota_text_observed"])
     return 0 if verified and not summary["persistent_settings_changed"] and not summary["callback_error_observed"] else 1
 
 
