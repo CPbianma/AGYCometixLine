@@ -2,7 +2,7 @@
 
 完整说明见仓库的 [中文主文档](../../README.zh.md)；[English quick start](../../README.md)。
 
-此目录不是已发布的 npm 产品。新 GitHub 远程和 npm 命名空间尚未确定，所有 `npm/` 包均为 `private: true`。`@cometix/ccline` 属于上游，不能用作 agyline 的安装源；本目录没有平台包依赖或远程二进制下载。
+源码位于 [CPbianma/AGYCometixLine](https://github.com/CPbianma/AGYCometixLine)。此目录不是已发布的 npm 产品，所有 `npm/` 包均为 `private: true`。`@cometix/ccline` 属于上游，不能用作 agyline 的安装源；本目录没有平台包依赖或远程二进制下载。
 
 ## 先构建并安装本 fork
 

@@ -1,10 +1,14 @@
-# agyline
+# AGYCometixLine
 
 中文主文档 | [English quick start](README.md)
 
 面向 **Antigravity CLI（AGY）** 的 Rust 状态栏，基于 CCometixLine fork。保留上游的 Rust 渲染器、可组合布局和全屏 TUI，接入 AGY 原生状态栏协议，并提供可恢复的本地安装。
 
-**当前版本为 0.1.0，仅支持本地／源码安装。** 新 GitHub 远程和 npm 命名空间尚未确定；本文不提供未发布包的安装命令，也不把上游 Releases 当成本 fork 下载源。`@cometix/ccline` 是上游包，不是 agyline，请勿用它安装本 fork。
+![Compact Mocha 日常与低额度两种状态栏预览](assets/agyline-preview.svg)
+
+上图取自 `agyline preview` 对内置虚构会话的实际输出，不是用户桌面截图。
+
+**当前版本 0.1.0，仅支持本地／源码安装。** GitHub 仓库名为 **AGYCometixLine**，可执行命令仍为 **`agyline`**。未发布 npm 包或预编译版本；`@cometix/ccline` 是上游包，不是本项目。
 
 ## 能做什么
 
@@ -203,7 +207,7 @@ CI 配置对 Windows／macOS／Linux 运行测试，并执行格式与 Clippy �
 
 ## 分发状态
 
-- 当前只支持本地／源码安装，没有已确认的新远程、npm 命名空间或正式下载地址。
+- 源码仓库：[CPbianma/AGYCometixLine](https://github.com/CPbianma/AGYCometixLine)。当前仅支持源码构建，未发布 npm 包或正式二进制下载。
 - `npm/` 保留为私有本地辅助入口，所有包均设置 `private: true`，没有上游二进制依赖，不支持通过它下载或发布本 fork。
 - 旧 postinstall 仅提示，不创建目录、不复制二进制、不改宿主设置。历史文件名 `npm/main/bin/ccline.js` 现在只转发给已安装的本 fork `agyline`，不会查找 `.claude`、调用上游包或退回 PATH 上的同名程序。
 - `prepare-packages.js` 无论参数如何都失败关闭，不生成发布目录。不要把上游 npm 包或发布流水线当作 fork 的安装通道。

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 358" role="img" aria-labelledby="title desc">
+<title id="title">AGYCometixLine | Compact Mocha</title>
+<desc id="desc">Actual renderer output for two built-in synthetic sessions. Healthy quotas are compact; low quotas show reset times.</desc>
+<rect width="900" height="358" rx="12" fill="#1e1e2e"/>
+<g font-family="Consolas, DejaVu Sans Mono, monospace" font-size="16">
+<text x="28" y="32" fill="#b4befe" font-weight="bold">AGYCometixLine</text>
+<text x="872" y="32" fill="#a6adc8" font-size="12" text-anchor="end">COMPACT MOCHA / SAMPLE DATA</text>
+<path d="M28 48H872" stroke="#45475a"/>
+<text x="28" y="74" fill="#a6adc8" font-size="13">01   EVERYDAY</text>
+<text x="28" y="98" xml:space="preserve"><tspan fill="#b4befe">Gemini 4 Neon</tspan><tspan fill="#cdd6f4"> · </tspan><tspan fill="#b4befe">xHigh</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#94e2d5">/workspace/agyline</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#74c7ec">main ● ↑2</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#cba6f7">ctx 25%</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#f5c2e7">Pro</tspan></text>
+<text x="28" y="122" xml:space="preserve"><tspan fill="#fab387">claude</tspan><tspan fill="#cdd6f4">  </tspan><tspan fill="#cdd6f4">weekly 65%</tspan></text>
+<text x="28" y="146" xml:space="preserve"><tspan fill="#fab387">gemini</tspan><tspan fill="#cdd6f4">  </tspan><tspan fill="#cdd6f4">weekly 82%</tspan></text>
+<text x="28" y="186" fill="#a6adc8" font-size="13">02   LOW QUOTA</text>
+<text x="28" y="210" xml:space="preserve"><tspan fill="#b4befe">Claude Opus 5.5</tspan><tspan fill="#cdd6f4"> · </tspan><tspan fill="#b4befe">High</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#94e2d5">/workspace/project</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#f38ba8">ctx 86%</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#f5c2e7">Pro</tspan></text>
+<text x="28" y="234" xml:space="preserve"><tspan fill="#cdd6f4">credits 1200 left</tspan></text>
+<text x="28" y="258" xml:space="preserve"><tspan fill="#fab387">claude</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 4% ↻1h00m</tspan></text>
+<text x="28" y="282" xml:space="preserve"><tspan fill="#fab387">disabled</tspan><tspan fill="#cdd6f4">  </tspan><tspan fill="#cdd6f4">bucket disabled</tspan></text>
+<text x="28" y="306" xml:space="preserve"><tspan fill="#fab387">gemini</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 0% ↻2h00m</tspan></text>
+<text x="28" y="330" xml:space="preserve"><tspan fill="#fab387">unknown</tspan><tspan fill="#cdd6f4">   </tspan><tspan fill="#cdd6f4">bucket unknown</tspan></text>
+</g></svg>

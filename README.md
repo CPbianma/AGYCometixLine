@@ -1,10 +1,14 @@
-# agyline
+# AGYCometixLine
 
 [中文主文档](README.zh.md) | English quick start
 
 A Rust status line for **Antigravity CLI (AGY)**, forked from CCometixLine. It keeps the upstream renderer and full-screen TUI while adapting the input protocol and reversible host integration to AGY.
 
-**Version: 0.1.0. Source/local installation only.** A fork repository URL and npm namespace have not been selected. No published npm package or downloadable fork release is advertised. `@cometix/ccline` belongs to the upstream project and is not agyline.
+![Compact Mocha in everyday and low-quota sessions](assets/agyline-preview.svg)
+
+The image uses actual `agyline preview` output from built-in sample data, not a user session.
+
+**Version: 0.1.0.** The repository is **AGYCometixLine**; the executable is **`agyline`**. Build from source: there is no published fork npm package or binary release. `@cometix/ccline` is the upstream package.
 
 ## Build and connect locally
 
