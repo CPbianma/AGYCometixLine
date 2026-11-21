@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
+<title>agyline · 状态栏版式对照</title>
+<style>
+  :root { color-scheme: dark; font: 16px/1.6 system-ui, sans-serif; background: #14151a; color: #e4e5ed; }
+  * { box-sizing: border-box; }
+  body { max-width: 1640px; margin: auto; padding: clamp(16px, 4vw, 56px); }
+  header { border-bottom: 1px solid #40424e; padding-bottom: 18px; }
+  small, .note { color: #b9bdcc; } h1 { font-size: clamp(24px, 3vw, 36px); margin: 4px 0; } h2 { font-size: 20px; margin: 12px 0 3px; }
+  p { margin: 4px 0; } .controls { display: flex; flex-wrap: wrap; gap: 10px 24px; margin: 18px 0 6px; }
+  label { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; } input { accent-color: #b4befe; }
+  .options { display: grid; gap: 24px; } @media(min-width: 1350px) { .options { grid-template-columns: 1fr 1fr; } }
+  article { min-width: 0; } .terminal { margin: 14px 0; min-width: 0; padding: 16px; background: var(--base); color: var(--text); border: 1px solid #40424e; border-radius: 6px; font: 14px/1.65 Consolas, 'Cascadia Mono', monospace; }
+  .mocha { --base:#1e1e2e; --text:#cdd6f4; --identity:#b4befe; --dir:#94e2d5; --context:#cba6f7; --plan:#f5c2e7; --quota:#fab387; --warn:#f9e2af; --crit:#f38ba8; --soft:#7f849c; }
+  .tokyo { --base:#1a1b26; --text:#c0caf5; --identity:#7aa2f7; --dir:#9ece6a; --context:#bb9af7; --plan:#bb9af7; --quota:#ff9e64; --warn:#e0af68; --crit:#f7768e; --soft:#565f89; }
+  .prompt { border-block: 1px solid var(--soft); padding: 5px 0; margin-bottom: 8px; } .terminal-body { width: 100%; }
+  body.narrow .terminal-body { max-width: 42ch; }
+  .identity { color: var(--identity); font-weight: 700; } .dir { color: var(--dir); } .context { color: var(--context); } .plan { color: var(--plan); }
+  .sep { color: var(--soft); } .family { color: var(--quota); } .group, .identity-row { display: flex; flex-wrap: wrap; gap: 0 1ch; }
+  .group { margin-top: 2px; column-gap: 2ch; } .group > span { white-space: nowrap; } .group .family { min-width: 6ch; }
+  .detail { display: grid; grid-template-columns: minmax(0, 23ch) 9ch auto; gap: 0 1ch; } .detail .name { overflow-wrap: anywhere; }
+  body.narrow .detail { grid-template-columns: 1fr auto; } body.narrow .detail .reset { grid-column: 1/-1; padding-left: 2ch; }
+  .reset { opacity: .86; } .bar { color: var(--quota); } .warning { color: var(--warn); font-weight: 700; } .critical { color: var(--crit); font-weight: 700; }
+  footer { margin-top: 24px; border-top: 1px solid #40424e; padding-top: 12px; font-size: 14px; }
+</style>
+<header><small>AGYLINE / 设计预览 01</small><h1>五个额度分组，怎样摆才好读？</h1><p class="note">同一份虚构输入，两种信息密度。颜色取自 CCometixLine；这不是已经安装的状态栏。</p></header>
+<div class="controls"><label><input id="show-alerts" type="checkbox">模拟低额度与耗尽</label><label><input id="narrow" type="checkbox">模拟窄终端（42 列）</label></div>
+<main class="options">
+  <article><h2>A · 日常紧凑</h2><p class="note">Catppuccin Mocha ／ 不重复画满格条，先看名称和数字。</p>
+    <div class="terminal mocha"><div class="terminal-body"><div class="prompt">❯ <span class="sep">输入消息…</span></div><div class="identity-row"></div><div id="compact-quota"></div></div></div>
+    <p>同前缀并排，仅低额度或耗尽时附重置倒计时。前缀只取自样例 ID，不推断它是哪家模型。</p></article>
+  <article><h2>B · 额度明细</h2><p class="note">Tokyo Night ／ 一项一行，保留完整 ID 和每项重置时间。</p>
+    <div class="terminal tokyo"><div class="terminal-body"><div class="prompt">❯ <span class="sep">输入消息…</span></div><div class="identity-row"></div><div id="detailed-quota"></div></div></div>
+    <p>每项显示短进度条；百分比右对齐。适合检查配额，比 A 占用更多终端行。</p></article>
+</main>
+<footer>两种方案都保留 5 项，不因布局紧凑而吞掉额度。浏览器字体和终端透明背景会有差异；最终以 AGY 实机输出为准。</footer>
+<script>
+  const sampleBuckets = [
+    { family: '3p', name: '5h', remaining: 100, reset: '4h59m' },
+    { family: '3p', name: 'weekly', remaining: 98, reset: '5d11h' },
+    { family: 'gemini', name: '5h', remaining: 100, reset: '4h59m' },
+    { family: 'gemini', name: 'weekly', remaining: 100, reset: '6d23h' },
+    { family: 'gemini', name: 'argon-wtu-weekly', remaining: 100, reset: '6d23h' },
+  ];
+  function makeSpan(text, className) {
+    const element = document.createElement('span');
+    element.textContent = text;
+    element.className = className || '';
+    return element;
+  }
+  for (const identityRow of document.querySelectorAll('.identity-row')) {
+    const fields = [['Gemini 4 Neon · xHigh', 'identity'], ['~/demo', 'dir'], ['ctx 0%', 'context'], ['Pro', 'plan']];
+    for (const [index, [text, className]] of fields.entries()) {
+      if (index) identityRow.append(makeSpan('│', 'sep'));
+      identityRow.append(makeSpan(text, className));
+    }
+  }
+  function renderQuotas() {
+    const compact = document.getElementById('compact-quota');
+    const detailed = document.getElementById('detailed-quota');
+    const showAlerts = document.getElementById('show-alerts').checked;
+    compact.replaceChildren(); detailed.replaceChildren();
+    const groups = new Map();
+    for (const [index, bucket] of sampleBuckets.entries()) {
+      const remaining = showAlerts && index < 2 ? [0, 8][index] : bucket.remaining;
+      const severity = remaining === 0 ? 'critical' : remaining <= 10 ? 'warning' : '';
+      const percentage = `${remaining}%`;
+      if (!groups.has(bucket.family)) {
+        const group = document.createElement('div'); group.className = 'group';
+        group.append(makeSpan(bucket.family, 'family')); groups.set(bucket.family, group); compact.append(group);
+      }
+      const entry = makeSpan('');
+      entry.append(makeSpan(`${bucket.name} `), makeSpan(percentage, severity));
+      if (severity) entry.append(makeSpan(` ↻${bucket.reset}`, severity));
+      groups.get(bucket.family).append(entry);
+      const detail = document.createElement('div'); detail.className = 'detail';
+      const meter = makeSpan(''); const filledCells = Math.round(remaining * 4 / 100);
+      meter.append(makeSpan('▰'.repeat(filledCells) + '▱'.repeat(4 - filledCells), severity || 'bar'),
+                   makeSpan(` ${percentage.padStart(4, '\u00a0')}`, severity));
+      detail.append(makeSpan(`${bucket.family}-${bucket.name}`, 'name'), meter, makeSpan(`↻ ${bucket.reset}`, 'reset'));
+      detailed.append(detail);
+    }
+  }
+  document.getElementById('show-alerts').addEventListener('change', renderQuotas);
+  document.getElementById('narrow').addEventListener('change', event => document.body.classList.toggle('narrow', event.target.checked));
+  renderQuotas();
+</script>
+</html>
