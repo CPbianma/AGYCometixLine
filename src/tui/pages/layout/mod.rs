@@ -741,7 +741,7 @@ mod tests {
         app.open_page(PageId::Layout);
         app.preview.width = Some(40);
         let s = screen(&mut app, 112, 33);
-        assert!(s.contains("↵ wraps here") && s.contains("→ 2 lines"), "{s}");
+        assert!(s.contains("↵ wraps here") && s.contains("→ 3 lines"), "{s}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

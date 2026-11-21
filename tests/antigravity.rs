@@ -76,6 +76,92 @@ fn render(input: &Input, skin: SkinKind, columns: usize) -> String {
     )
 }
 
+fn default_output(extra: serde_json::Value, columns: usize) -> String {
+    let config = ccometixline::presets::default_config();
+    let frame = Frame {
+        now: NOW,
+        tz: FixedOffset::east_opt(0).unwrap(),
+        width: Some(columns),
+        git: GitSource::Fixed(None),
+        state: StateView::default(),
+        compact: AutoCompact::default(),
+        commands: Commands::Show,
+    };
+    ansi::emit(
+        &statusline::lines(&payload(extra), &config, &Registry::default(), frame),
+        ansi::EmitOptions::plain(),
+    )
+}
+
+#[test]
+fn compact_default_groups_five_buckets_without_repeating_full_bars() {
+    let input = serde_json::json!({"plan_tier":"Pro", "context_window":{"used_percentage":0},"quota":{
+        "3p-5h":{"remaining_fraction":1.0,"reset_in_seconds":500},"3p-weekly":{"remaining_fraction":0.98},
+        "gemini-5h":{"remaining_fraction":1.0},"gemini-weekly":{"remaining_fraction":1.0},
+        "gemini-argon-wtu-weekly":{"remaining_fraction":1.0}
+    }});
+    let wide = default_output(input.clone(), 132);
+    let rows: Vec<_> = wide.lines().collect();
+    assert_eq!(rows.len(), 3, "{wide}");
+    assert!(
+        rows[0].contains("ctx 0%") && rows[0].ends_with("Pro"),
+        "{wide}"
+    );
+    assert_eq!(
+        rows[1].split_whitespace().collect::<Vec<_>>(),
+        ["3p", "5h", "100%", "weekly", "98%"]
+    );
+    assert_eq!(
+        rows[2].split_whitespace().collect::<Vec<_>>(),
+        [
+            "gemini",
+            "5h",
+            "100%",
+            "weekly",
+            "100%",
+            "argon-wtu-weekly",
+            "100%"
+        ]
+    );
+    for columns in [32, 42, 60] {
+        let narrow = default_output(input.clone(), columns);
+        assert!(
+            narrow
+                .lines()
+                .all(|row| width::display_width(row) <= columns),
+            "{narrow}"
+        );
+        assert_eq!(narrow.matches("100%").count(), 4, "{narrow}");
+        assert!(narrow.contains("98%"), "{narrow}");
+    }
+}
+
+#[test]
+fn compact_default_keeps_nonpercentage_states_and_only_shows_alert_resets() {
+    let output = default_output(
+        serde_json::json!({"quota":{
+            "custom-X":{"remaining_fraction":0.08,"reset_in_seconds":7200},
+            "custom-Y":{"remaining_fraction":1.0,"reset_in_seconds":3600},
+            "credits":{"remaining_amount":123}, "off":{"disabled":true}, "unused":{}
+        }}),
+        100,
+    );
+    for expected in [
+        "X 8%",
+        "2h00m",
+        "Y 100%",
+        "credits 123 left",
+        "off disabled",
+        "unused unknown",
+    ] {
+        assert!(output.contains(expected), "{expected}: {output}");
+    }
+    assert!(
+        !output.contains("1h00m") && !output.contains("123%"),
+        "{output}"
+    );
+}
+
 #[test]
 fn normalizes_native_conversation_and_nested_effort() {
     let input = payload(serde_json::json!({}));

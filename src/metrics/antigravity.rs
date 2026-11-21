@@ -50,13 +50,23 @@ pub(super) fn metrics() -> Vec<Metric> {
                     "pct",
                     "reset",
                     "amount",
+                    "compact_remaining",
+                    "alert_reset",
                 ],
-                options: &[OptSpec {
-                    key: "bucket",
-                    kind: OptKind::Text,
-                    default: "all",
-                    summary: "Exact quota bucket ID; unset expands all native buckets",
-                }],
+                options: &[
+                    OptSpec {
+                        key: "bucket",
+                        kind: OptKind::Text,
+                        default: "all",
+                        summary: "Exact quota bucket ID; unset expands all native buckets",
+                    },
+                    OptSpec {
+                        key: "group_by",
+                        kind: OptKind::Choice(&["none", "prefix"]),
+                        default: "none",
+                        summary: "Group by ID prefix on a dedicated left-side quota line",
+                    },
+                ],
                 priority: 5,
                 ..metadata(
                     "quota",
@@ -129,6 +139,7 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
         return Some(
             reading
                 .set("remaining", "disabled")
+                .set("compact_remaining", "disabled")
                 .severity(Severity::Normal),
         );
     }
@@ -139,6 +150,7 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
         let percentage = fmt::percent(fraction);
         reading = reading
             .set("remaining", format!("{percentage}% left"))
+            .set("compact_remaining", format!("{percentage}%"))
             .set("pct", percentage)
             .ratio(fraction)
             .severity(if fraction <= 0.05 {
@@ -160,6 +172,7 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
         reading = reading
             .set("amount", &amount_text)
             .set("remaining", format!("{amount_text} left"))
+            .set("compact_remaining", format!("{amount_text} left"))
             .severity(if amount == 0.0 {
                 Severity::Crit
             } else {
@@ -168,17 +181,24 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
     } else {
         reading = reading
             .set("remaining", "unknown")
+            .set("compact_remaining", "unknown")
             .severity(Severity::Normal);
     }
     if let Some(seconds) = reset_seconds(bucket, context.now) {
-        reading = reading.set(
-            "reset",
-            if seconds <= 0 {
-                "awaiting refresh".to_string()
+        let reset = if seconds <= 0 {
+            "awaiting refresh".to_string()
+        } else {
+            fmt::countdown(seconds)
+        };
+        if matches!(reading.severity, Some(Severity::Warn | Severity::Crit)) {
+            let marker = if context.glyphs == GlyphTier::Ascii {
+                "reset "
             } else {
-                fmt::countdown(seconds)
-            },
-        );
+                "↻"
+            };
+            reading = reading.set("alert_reset", format!("{marker}{reset}"));
+        }
+        reading = reading.set("reset", reset);
     }
     Some(reading)
 }

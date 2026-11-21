@@ -377,7 +377,7 @@ mod tests {
             assert!(s.contains(name), "{name}: {s}");
         }
         assert!(s.contains("✓ in use"), "the default config is cometix: {s}");
-        assert!(s.contains("Classic two-row look"));
+        assert!(s.contains("Compact Mocha"));
 
         // Right then down: from cometix to the card under minimal. The
         // preview bar shows the card under the cursor, nothing applied yet.

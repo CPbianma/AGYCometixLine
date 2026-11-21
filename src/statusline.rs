@@ -1,5 +1,7 @@
 //! The render pipeline: config + input → metrics → widgets → layout → lines.
 
+mod grouped_quota;
+
 use crate::config::{Config, ItemConfig, ItemSpec, LineConfig};
 use crate::env::{AutoCompact, ClaudeSettings};
 use crate::input::{Input, SubagentInput, Task};
@@ -110,6 +112,9 @@ pub fn lines(input: &Input, config: &Config, registry: &Registry, frame: Frame) 
         .lines
         .iter()
         .flat_map(|line| {
+            if let Some(grouped) = grouped_quota::render(line, &ctx, &theme, frame.width) {
+                return grouped.0;
+            }
             let spec = line_spec(line, &ctx, &theme).0;
             layout::wrap(&spec, frame.width, &theme)
         })
@@ -144,6 +149,8 @@ pub fn report(
     let mut ctx = context(input, registry, frame, &theme);
     if let Some(task) = task {
         ctx = ctx.with_task(task);
+    } else if let Some(grouped) = grouped_quota::render(line, &ctx, &theme, frame.width) {
+        return grouped.1;
     }
     let (spec, [left, right]) = line_spec(line, &ctx, &theme);
     let source = |side: Side, i: usize| match side {
@@ -322,7 +329,15 @@ fn lay_item(cfg: &ItemConfig, ctx: &Ctx, theme: &Theme) -> Option<LaidItem> {
     let metric = metrics::find(&cfg.metric)?;
     let empty = Options::new();
     let reading = metrics::read(metric, ctx, cfg.options.as_ref().unwrap_or(&empty))?;
-    let meta = &metric.meta;
+    lay_reading(cfg, theme, &metric.meta, &reading)
+}
+
+fn lay_reading(
+    cfg: &ItemConfig,
+    theme: &Theme,
+    meta: &metrics::MetricMeta,
+    reading: &metrics::Reading,
+) -> Option<LaidItem> {
     let template = |own: &Option<String>, i: usize| {
         own.clone().unwrap_or_else(|| meta.templates[i].to_string())
     };
@@ -347,7 +362,7 @@ fn lay_item(cfg: &ItemConfig, ctx: &Ctx, theme: &Theme) -> Option<LaidItem> {
         },
         coloring: cfg.coloring.unwrap_or_default(),
     };
-    let variants = Level::ALL.map(|level| widgets::render(&reading, &props, level, theme.glyphs));
+    let variants = Level::ALL.map(|level| widgets::render(reading, &props, level, theme.glyphs));
     if variants.iter().all(Option::is_none) {
         return None;
     }
@@ -358,7 +373,7 @@ fn lay_item(cfg: &ItemConfig, ctx: &Ctx, theme: &Theme) -> Option<LaidItem> {
     Some(LaidItem {
         variants,
         category: meta.category,
-        severity: widgets::severity(&reading, &props.levels),
+        severity: widgets::severity(reading, &props.levels),
         color: cfg.color.as_deref().and_then(resolve),
         fg: cfg.fg.as_deref().and_then(resolve),
         icon_color: cfg.icon_color.as_deref().and_then(resolve),
@@ -395,13 +410,20 @@ mod tests {
     }
 
     #[test]
-    fn cometix_draws_classic_identity_and_native_quota_rows() {
+    fn cometix_keeps_subscription_with_identity_and_quota_on_family_rows() {
         let out = render("cometix", "antigravity", None);
-        assert_eq!(out.len(), 2);
+        assert_eq!(out.len(), 3);
         assert!(out[0].contains("Gemini 4 Neon · xHigh"));
         assert!(out[0].contains("agyline") && out[0].contains("25%"));
-        assert!(out[1].contains("Pro") && out[1].contains("gemini-weekly 82% left"));
-        assert!(out[1].contains("claude-weekly 65% left"));
+        assert!(out[0].ends_with("Pro"));
+        assert_eq!(
+            out[1].split_whitespace().collect::<Vec<_>>(),
+            ["claude", "weekly", "65%"]
+        );
+        assert_eq!(
+            out[2].split_whitespace().collect::<Vec<_>>(),
+            ["gemini", "weekly", "82%"]
+        );
     }
 
     #[test]

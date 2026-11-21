@@ -23,24 +23,24 @@ pub const DEFAULT: &str = "cometix";
 pub const PRESETS: &[Preset] = &[
     Preset {
         name: "cometix",
-        summary: "Classic two-row look: model, directory, git, context and native quota",
+        summary: "Compact Mocha: session details above grouped native quota",
         tags: &["multi-line", "quota", "context"],
         toml: r#"
-palette = "terminal"
+palette = "catppuccin-mocha"
 skin = "plain"
 glyphs = "nerd"
-separator = " | "
 
 [[line]]
 left = [
-  "model",
-  { metric = "dir", icon_color = "bright_yellow" },
-  "git",
-  { metric = "context", widget = "text", format = "{pct}%[ · {tokens} tokens]" },
+  { metric = "model", icon = "" },
+  { metric = "dir", icon = "", options = { style = "tilde" } },
+  { metric = "git", icon = "" },
+  { metric = "context", icon = "", widget = "text", format = "[ctx {pct}%]", compact = "[ctx {pct}%]" },
+  { metric = "plan", icon = "", fg = "session" },
 ]
 
 [[line]]
-left = ["plan", { metric = "quota", cells = 8 }]
+left = [{ metric = "quota", widget = "text", icon = "", fg = "text", format = "{name} {compact_remaining}[ {alert_reset}]", compact = "{tiny} {compact_remaining}", minimal = "{compact_remaining}", options = { group_by = "prefix" } }]
 "#,
     },
     Preset {
@@ -596,7 +596,7 @@ mod tests {
             }
             for item in c.lines.iter().flat_map(|l| l.left.iter().chain(&l.right)) {
                 let item = item.config();
-                if item.metric == "dir" {
+                if item.metric == "dir" && item.icon.as_deref() != Some("") {
                     assert_eq!(
                         item.icon_color.as_deref(),
                         Some("bright_yellow"),

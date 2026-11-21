@@ -64,7 +64,7 @@ fn real_executable_renders_native_stdin_and_sanitizes_opt_in_capture() {
     );
     let rendered = String::from_utf8(output.stdout).unwrap();
     assert!(
-        rendered.contains("Gemini 4 Neon") && rendered.contains("82% left"),
+        rendered.contains("Gemini 4 Neon") && rendered.contains("weekly 82%"),
         "{rendered}"
     );
     assert!(!rendered.contains("private@example.invalid"));
@@ -74,6 +74,34 @@ fn real_executable_renders_native_stdin_and_sanitizes_opt_in_capture() {
     );
     let parsed = ccometixline::input::Input::parse(&snapshot).unwrap();
     assert!(parsed.is_antigravity());
+}
+
+#[cfg(windows)]
+#[test]
+fn windows_terminal_uses_mocha_rgb_when_color_is_automatic() {
+    let sandbox = Sandbox::new();
+    for (disable_color, expected_rgb) in [(false, true), (true, false)] {
+        let mut command = Command::new(env!("CARGO_BIN_EXE_agyline"));
+        command
+            .args(["preview", "--scenario", "antigravity"])
+            .env("AGYLINE_HOME", sandbox.0.join("data"))
+            .env("AGY_CONFIG_DIR", sandbox.0.join("host"))
+            .env("WT_SESSION", "terminal-test")
+            .env_remove("COLORTERM")
+            .env_remove("TERM")
+            .env_remove("NO_COLOR");
+        if disable_color {
+            command.env("NO_COLOR", "1");
+        }
+        let output = command.output().unwrap();
+        assert!(output.status.success());
+        let preview = String::from_utf8(output.stdout).unwrap();
+        assert_eq!(
+            preview.contains("38;2;180;190;254"),
+            expected_rgb,
+            "{preview:?}"
+        );
+    }
 }
 
 #[test]

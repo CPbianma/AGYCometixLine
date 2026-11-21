@@ -367,7 +367,7 @@ fn installed_command_runs_from_a_unicode_path_with_spaces() {
         .unwrap();
     let output = assert_success(child.wait_with_output().unwrap());
     assert!(
-        output.contains("Gemini 4 中文") && output.contains("82% left"),
+        output.contains("Gemini 4 中文") && output.contains("weekly 82%"),
         "{output}"
     );
 }

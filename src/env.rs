@@ -21,7 +21,10 @@ pub fn color_depth() -> ColorDepth {
         return ColorDepth::None;
     }
     let colorterm = var("COLORTERM").to_lowercase();
-    if colorterm == "truecolor" || colorterm == "24bit" {
+    if colorterm == "truecolor"
+        || colorterm == "24bit"
+        || (cfg!(windows) && !var("WT_SESSION").is_empty())
+    {
         return ColorDepth::TrueColor;
     }
     if var("TERM").contains("256color") {

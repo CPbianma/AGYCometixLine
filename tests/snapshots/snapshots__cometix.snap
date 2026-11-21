@@ -3,35 +3,42 @@ source: tests/snapshots.rs
 expression: render_preset(preset.name)
 ---
 ── antigravity @ 60
- Gemini 4 Neon · xHigh | 󰉋 agyline | 󰊢 main ● ↑2⏎
- 25% · 262k tokens⏎
- Pro | 󰔠 ▰▰▰▰▰▱▱▱ claude-weekly 65% left · reset 1d0h⏎
-󰔠 ▰▰▰▰▰▰▱▱ gemini-weekly 82% left · reset 5h00m⏎
+Gemini 4 Neon · xHigh │ /workspace/agyline │ main ● ↑2⏎
+ctx 25% │ Pro⏎
+claude  weekly 65%⏎
+gemini  weekly 82%⏎
 ── antigravity @ 100
- Gemini 4 Neon · xHigh | 󰉋 agyline | 󰊢 main ● ↑2 |  25% · 262k tokens⏎
- Pro | 󰔠 ▰▰▰▰▰▱▱▱ claude-weekly 65% left · reset 1d0h⏎
-󰔠 ▰▰▰▰▰▰▱▱ gemini-weekly 82% left · reset 5h00m⏎
+Gemini 4 Neon · xHigh │ /workspace/agyline │ main ● ↑2 │ ctx 25% │ Pro⏎
+claude  weekly 65%⏎
+gemini  weekly 82%⏎
 ── antigravity @ 140
- Gemini 4 Neon · xHigh | 󰉋 agyline | 󰊢 main ● ↑2 |  25% · 262k tokens⏎
- Pro | 󰔠 ▰▰▰▰▰▱▱▱ claude-weekly 65% left · reset 1d0h | 󰔠 ▰▰▰▰▰▰▱▱ gemini-weekly 82% left · reset 5h00m⏎
+Gemini 4 Neon · xHigh │ /workspace/agyline │ main ● ↑2 │ ctx 25% │ Pro⏎
+claude  weekly 65%⏎
+gemini  weekly 82%⏎
 ── agy-low-quota @ 60
- Claude Opus 5.5 · High | 󰉋 project |  86% · 172k tokens⏎
- Pro | 󰔠 ▱▱▱▱▱▱▱▱ claude-weekly 4% left · reset 1h00m⏎
-󰔠 credits 1200 left | 󰔠 disabled-bucket disabled⏎
-󰔠 ▱▱▱▱▱▱▱▱ gemini-weekly 0% left · reset 2h00m⏎
-󰔠 unknown-bucket unknown⏎
+Claude Opus 5.5 · High │ /workspace/project │ ctx 86% │ Pro⏎
+credits 1200 left⏎
+claude    weekly 4% ↻1h00m⏎
+disabled  bucket disabled⏎
+gemini    weekly 0% ↻2h00m⏎
+unknown   bucket unknown⏎
 ── agy-low-quota @ 100
- Claude Opus 5.5 · High | 󰉋 project |  86% · 172k tokens⏎
- Pro | 󰔠 ▱▱▱▱▱▱▱▱ claude-weekly 4% left · reset 1h00m | 󰔠 credits 1200 left⏎
-󰔠 disabled-bucket disabled | 󰔠 ▱▱▱▱▱▱▱▱ gemini-weekly 0% left · reset 2h00m⏎
-󰔠 unknown-bucket unknown⏎
+Claude Opus 5.5 · High │ /workspace/project │ ctx 86% │ Pro⏎
+credits 1200 left⏎
+claude    weekly 4% ↻1h00m⏎
+disabled  bucket disabled⏎
+gemini    weekly 0% ↻2h00m⏎
+unknown   bucket unknown⏎
 ── agy-low-quota @ 140
- Claude Opus 5.5 · High | 󰉋 project |  86% · 172k tokens⏎
- Pro | 󰔠 ▱▱▱▱▱▱▱▱ claude-weekly 4% left · reset 1h00m | 󰔠 credits 1200 left | 󰔠 disabled-bucket disabled⏎
-󰔠 ▱▱▱▱▱▱▱▱ gemini-weekly 0% left · reset 2h00m | 󰔠 unknown-bucket unknown⏎
+Claude Opus 5.5 · High │ /workspace/project │ ctx 86% │ Pro⏎
+credits 1200 left⏎
+claude    weekly 4% ↻1h00m⏎
+disabled  bucket disabled⏎
+gemini    weekly 0% ↻2h00m⏎
+unknown   bucket unknown⏎
 ── agy-startup @ 60
-󰉋 project⏎
+/workspace/project⏎
 ── agy-startup @ 100
-󰉋 project⏎
+/workspace/project⏎
 ── agy-startup @ 140
-󰉋 project⏎
+/workspace/project⏎
