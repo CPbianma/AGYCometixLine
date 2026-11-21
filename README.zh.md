@@ -115,7 +115,7 @@ Cargo 内部包名暂时仍为 `ccometixline`；对外命令和构建产物是 *
 
 ## 八个预设与外观
 
-- `cometix`（默认）：经典**两行**；模型、目录、Git、上下文，以及订阅和原生 quota。
+- `cometix`（默认，A 版日常紧凑）：Catppuccin Mocha。首行显示模型／推理强度、目录、可用的 Git 信息、`ctx` 和订阅。额度按原生 ID 的首段分行（例如 `3p`、`gemini`），百分比均为**剩余**，不画满格条。剩余 ≤20% 时告警、≤5% 时标为严重；仅在告警且有重置数据时显示倒计时。数额、`unknown` 和 `disabled` 不会变成百分比。
 - `minimal`：紧凑的一行，隐藏图标，显示模型、上下文和剩余额度。
 - `dashboard`：三行仪表盘，Catppuccin Mocha／pill，包含上下文趋势和宿主活动。
 - `budget`：两行、额度优先，Tokyo Night，显示原生 bucket 和重置信息，不假设固定周期。
@@ -125,6 +125,8 @@ Cargo 内部包名暂时仍为 `ccometixline`；对外命令和构建产物是 *
 - `powerline`：两行、Tokyo Night powerline 风格与原生额度仪表。
 
 皮肤：`plain`、`bracket`、`pill`、`powerline`。
+
+更新程序不会改写已有的 `config.toml`。想从旧布局切换：打开 `--config` → **Presets** → 选 **Cometix** → Enter → Ctrl+S。想看所有重置时间和进度条则选 **Budget**。Windows Terminal 自动模式支持真彩色，`NO_COLOR` 仍可关闭颜色。
 
 13 套配色：`terminal`、`catppuccin-mocha`、`catppuccin-latte`、`dracula`、`nord`、`tokyo-night`、`rose-pine`、`gruvbox`、`anthropic-clay`、`powerline-dark`、`powerline-light`、`powerline-rose-pine`、`powerline-tokyo-night`。
 
@@ -191,7 +193,7 @@ python -m unittest discover -s scripts -p test_verification.py -v
 
 CI 配置对 Windows／macOS／Linux 运行测试，并执行格式与 Clippy 检查。持续集成结果以对应工作流的实际运行记录为准；下列计数仅记录本次本机验收。
 
-**最新复验（2026-11-21）**：Windows 上 252 项 Rust 测试、6 项验证脚本回归及 1 项发布版 TUI 交互测试通过。真实 AGY **1.5.14** 的临时会话和已有安装均输出额度文本，稳定程序与当前 release 的 SHA-256 一致，无需重装。临时会话验收已修正：收到原生 quota 但终端未显示百分比额度时，不再仅凭采集成功判为通过。桌面字体、图标及重绘效果仍未做视觉签收。详见[最新验收记录与复验命令](docs/verification/2026-11-21-agyline.md)。
+**A 版复验**：Windows 上 255 项 Rust 测试、8 项验证脚本回归和 1 项 TUI 交互测试通过。AGY 1.5.14 的临时会话和已有安装都观察到了额度文本。见 [A 版验收与边界](docs/superpowers/plans/2026-11-21-compact-quota.md)；此前详细版的结果和复验命令见 [11 月 21 日基线](docs/verification/2026-11-21-agyline.md)。
 
 **2026-11-20 本机验收**：Windows 上通过 252 项 Rust 测试、3 项验证脚本回归测试、格式检查、严格 Clippy 与发布构建。真实 Antigravity CLI 1.5.13 在 132 列终端中提供原生数据和 5 个 quota bucket；临时会话配置及持久安装两条链路均检测到剩余额度文本，没有发送模型请求，也未在启动验证期间改写持久设置。安装更新验证了二进制与构建产物一致、无关设置保留；首次修复写入前创建了原字节备份，随后重复安装无需改写设置。
 
