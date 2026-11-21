@@ -14,6 +14,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -21,16 +22,59 @@ import threading
 import time
 
 
-def has_quota_evidence(*, installed: bool, snapshot: object, quota_visible: bool) -> bool:
-    """This smoke test checks a quota-displaying layout, not every valid layout."""
-    if not quota_visible:
-        return False
+_TERMINAL_ESCAPE = re.compile(r"\x1b\].*?(?:\x07|\x1b\\|\Z)|\x1b\[[0-?]*[ -/]*[@-~]", re.DOTALL)
+_LABEL_START = r"(?<![\w.-])"
+_PERCENT = r"(?:100|[1-9]?[0-9])%(?![\w%])"
+_GAP = r"[ \t]+"
+_WINDOW_LABEL = r"(?:[0-9]+[hd]|daily|weekly|monthly)"
+_WINDOW_ENTRY = rf"{_WINDOW_LABEL}{_GAP}{_PERCENT}"
+_DETAILED_PERCENT = rf"{_GAP}{_PERCENT}{_GAP}left\b"
+_PERSISTENT_QUOTA = re.compile(
+    rf"""{_LABEL_START}(?:
+        credits{_GAP}{_PERCENT}                                       # standalone credits
+      | (?:\w+(?:-\w+)+|{_WINDOW_LABEL}){_DETAILED_PERCENT}             # legacy ID or window
+      | (?!(?i:ctx|context)\b)\w+{_DETAILED_PERCENT}{_GAP}\u00b7{_GAP}reset\b
+      | {_WINDOW_ENTRY}(?:{_GAP}\u21bb[ \t]*[0-9a-z]+)?{_GAP}{_WINDOW_ENTRY}
+    )""", re.VERBOSE,
+)
+
+
+def normalize_terminal_escape(match: re.Match[str]) -> str:
+    sequence = match.group()
+    if sequence.startswith("\x1b["):
+        if sequence.endswith("m"):  # SGR changes style, not visible text.
+            return ""
+        if sequence.endswith("C"):  # ConPTY can emit cursor-forward instead of padding.
+            return " "
+    return "\n"  # Do not join fields across cursor moves, redraws or hidden OSC titles.
+
+
+def has_quota_evidence(*, installed: bool, snapshot: object, terminal_output: str) -> bool:
+    """Match a displayed label and percent, not an unrelated context/progress percent."""
+    visible = _TERMINAL_ESCAPE.sub(normalize_terminal_escape, terminal_output)
     if installed:
-        return True  # Persistent mode deliberately does not capture a payload.
+        # No payload: require explicit credits, a recognizable detailed quota,
+        # or adjacent named windows. A lone arbitrary label/percent is ambiguous.
+        return _PERSISTENT_QUOTA.search(visible) is not None
     if not isinstance(snapshot, dict) or snapshot.get("product") != "antigravity":
         return False
     buckets = snapshot.get("quota")
-    return isinstance(buckets, dict) and bool(buckets)
+    if not isinstance(buckets, dict):
+        return False
+    for bucket_id, bucket in buckets.items():
+        if not isinstance(bucket_id, str) or not isinstance(bucket, dict) or bucket.get("disabled") is True:
+            continue
+        fraction = bucket.get("remaining_fraction")
+        if type(fraction) not in (int, float) or not 0 <= fraction <= 1:
+            continue
+        # Match the renderer: nearest whole percent, with a floor of 1 for nonzero fractions.
+        percentage = max(int(fraction > 0), int(fraction * 100 + 0.5))
+        for label in {bucket_id, bucket_id.partition("-")[2]}:
+            if not label or not label.isprintable() or label.casefold() in {"ctx", "context"}:
+                continue
+            if re.search(rf"{_LABEL_START}{re.escape(label)}{_GAP}{percentage}%(?![\w%])", visible):
+                return True
+    return False
 
 
 def reserve_output_directory(requested: Path) -> Path:
@@ -150,7 +194,7 @@ def main() -> int:
                 except (FileNotFoundError, json.JSONDecodeError, PermissionError):
                     pass
             if has_quota_evidence(installed=arguments.installed, snapshot=snapshot,
-                                  quota_visible="% left" in "".join(output_chunks)):
+                                  terminal_output="".join(output_chunks)):
                 time.sleep(2)
                 break
             time.sleep(0.25)
@@ -161,7 +205,9 @@ def main() -> int:
             "native_payload_received": None if arguments.installed else (snapshot or {}).get("product") == "antigravity",
             "model_prompt_sent": False,
             "screenshot_verified": False,
-            "remaining_quota_text_observed": "% left" in terminal_output,
+            "remaining_quota_text_observed": has_quota_evidence(
+                installed=arguments.installed, snapshot=snapshot, terminal_output=terminal_output,
+            ),
             "callback_error_observed": "invalid status line input" in terminal_output,
         }
         if snapshot is not None:
@@ -192,8 +238,7 @@ def main() -> int:
     summary["persistent_settings_changed"] = settings_before != settings_digest()
     (output_directory / "summary.json").write_text(json.dumps(summary, indent=2), encoding="utf-8")
     print(json.dumps(summary, indent=2))
-    verified = has_quota_evidence(installed=arguments.installed, snapshot=snapshot,
-                                  quota_visible=summary["remaining_quota_text_observed"])
+    verified = summary["remaining_quota_text_observed"]
     return 0 if verified and not summary["persistent_settings_changed"] and not summary["callback_error_observed"] else 1
 
 

@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import base64
+import contextlib
+import io
 import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import Mock, patch
 
 import verify_agy_host
 
@@ -28,24 +32,84 @@ class HostEvidenceTests(unittest.TestCase):
             self.assertFalse((second / "payload.json").exists())
             self.assertEqual(capture.read_text(encoding="utf-8"), "first run")
 
-    def test_session_requires_native_quota_and_terminal_output(self) -> None:
-        native = {"product": "antigravity", "quota": {"dynamic-id": {"remaining_fraction": 0}}}
-        for snapshot, quota_visible, expected in [
-            (native, False, False), (native, True, True), (None, True, False),
-            ({"product": "antigravity", "quota": {}}, True, False),
-            ({"product": "other", "quota": native["quota"]}, True, False),
+    def test_session_matches_a_rendered_bucket_to_its_own_percentage(self) -> None:
+        snapshot = {"product": "antigravity", "quota": {
+            "3p-5h": {"remaining_fraction": 1}, "3p-weekly": {"remaining_fraction": 0.98},
+            "gemini-argon-wtu-weekly": {"remaining_fraction": 0.375},
+            "credits": {"remaining_fraction": 0.82}, "tiny": {"remaining_fraction": 0.001},
+            "empty": {"remaining_fraction": 0},
+        }}
+        for terminal_output, expected in [
+            ("ctx 0%\r\n3p      5h 100%  weekly 98%", True),
+            ("gemini   argon-wtu-weekly \x1b[32m38%\x1b[0m", True),
+            ("credits\x1b[5C82%", True), ("tiny 1%", True), ("empty 0%", True),
+            ("3p-weekly 98% left \u00b7 reset 1d0h", True),
+            ("", False), ("ctx 0%", False), ("98% left", False),
+            ("3p  5h 98%  weekly 100%", False), ("some-credits 82%", False),
+            ("3p-weekly 18% left | ctx 98%", False), ("credits\r\n82%", False),
+            ("credits\x1b[2;5H82%", False), ("\x1b]0;credits 82%\x07ctx 0%", False),
         ]:
-            with self.subTest(snapshot=snapshot, quota_visible=quota_visible):
+            with self.subTest(terminal_output=terminal_output):
                 self.assertEqual(verify_agy_host.has_quota_evidence(
-                    installed=False, snapshot=snapshot, quota_visible=quota_visible,
+                    installed=False, snapshot=snapshot, terminal_output=terminal_output,
                 ), expected)
 
-    def test_persistent_check_needs_output_but_has_no_capture(self) -> None:
-        for quota_visible in [True, False]:
-            with self.subTest(quota_visible=quota_visible):
+    def test_session_requires_native_reportable_fraction(self) -> None:
+        for snapshot in [
+            None, {"product": "other", "quota": {"credits": {"remaining_fraction": 0}}},
+            {"product": "antigravity", "quota": {}},
+            *({"product": "antigravity", "quota": {"credits": bucket}} for bucket in [
+                {"remaining_amount": 0}, {"remaining_fraction": False}, {"remaining_fraction": -1},
+                {"remaining_fraction": 0, "disabled": True},
+            ]),
+            {"product": "antigravity", "quota": {"example-ctx": {"remaining_fraction": 0}}},
+        ]:
+            with self.subTest(snapshot=snapshot):
+                self.assertFalse(verify_agy_host.has_quota_evidence(
+                    installed=False, snapshot=snapshot, terminal_output="ctx 0% | credits 0% left",
+                ))
+
+    def test_persistent_mode_requires_recognizable_quota_output_without_capture(self) -> None:
+        for terminal_output, expected in [
+            ("3p\x1b[6C5h \x1b[32m100%\x1b[0m  weekly 98%", True),
+            ("credits 82%", True), ("claude-weekly 65% left", True),
+            ("pool 65% left \u00b7 reset 1d0h", True), ("weekly 65% left", True),
+            ("ctx 0%", False), ("ctx 76% left", False), ("76% left", False),
+            ("ctx 76% left \u00b7 reset 1d0h", False),
+            ("progress 82%", False), ("credits 182%", False), ("credits\r\n82%", False),
+            ("\x1b]0;credits 82%\x1b\\ctx 0%", False), ("", False),
+        ]:
+            with self.subTest(terminal_output=terminal_output):
                 self.assertEqual(verify_agy_host.has_quota_evidence(
-                    installed=True, snapshot=None, quota_visible=quota_visible,
-                ), quota_visible)
+                    installed=True, snapshot=None, terminal_output=terminal_output,
+                ), expected)
+
+    def test_installed_summary_accepts_compact_stream_without_a_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "diagnostic"
+            arguments = ["verify", "--installed", "--binary", sys.executable,
+                         "--launcher", sys.executable, "--output", str(output)]
+            process = Mock()
+            # Replay two chunks synchronously, then report that the simulated host exited.
+            chunks = ["synthetic-banner\r\n3p\x1b[", "6C5h 100%  weekly 98%"]
+            process.read.side_effect = chunks
+            process.isalive.side_effect = lambda: process.read.call_count < len(chunks)
+            fake_winpty = SimpleNamespace(PtyProcess=Mock(spawn=Mock(return_value=process)))
+            isolated_os = SimpleNamespace(name="nt", environ={"AGY_CONFIG_DIR": temporary})
+            console = io.StringIO()
+            with (
+                patch.dict(sys.modules, winpty=fake_winpty), patch.object(sys, "argv", arguments),
+                patch.object(verify_agy_host, "os", isolated_os),
+                patch.object(verify_agy_host.threading, "Thread",
+                             side_effect=lambda target, daemon: SimpleNamespace(start=target)),
+                contextlib.redirect_stdout(console), contextlib.redirect_stderr(console),
+            ):
+                self.assertEqual(verify_agy_host.main(), 0)
+            self.assertEqual([file.name for file in output.iterdir()], ["summary.json"])
+            summary = json.loads((output / "summary.json").read_text(encoding="utf-8"))
+            self.assertTrue(summary["remaining_quota_text_observed"])
+            self.assertIsNone(summary["native_payload_received"])
+            self.assertNotIn("synthetic-banner", console.getvalue())
 
 
 class CallbackCommandTests(unittest.TestCase):
