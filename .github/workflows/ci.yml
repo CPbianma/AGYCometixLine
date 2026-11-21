@@ -61,3 +61,9 @@ jobs:
 
       - name: Build agyline with the lockfile
         run: cargo build --release --locked --bin agyline
+
+      - name: Exercise first-run setup in an isolated Windows terminal
+        if: runner.os == 'Windows'
+        run: |
+          python -m pip install --only-binary=:all: pywinpty
+          python scripts/test_tui_terminal.py -v
