@@ -147,8 +147,7 @@ fn compact_default_keeps_nonpercentage_states_and_only_shows_alert_resets() {
         100,
     );
     for expected in [
-        "X 8%",
-        "2h00m",
+        "X 8% \u{21bb} 2h00m",
         "Y 100%",
         "credits 123 left",
         "off disabled",

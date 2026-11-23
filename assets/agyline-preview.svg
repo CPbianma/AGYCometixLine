@@ -13,8 +13,8 @@
 <text x="28" y="186" fill="#a6adc8" font-size="13">02   LOW QUOTA</text>
 <text x="28" y="210" xml:space="preserve"><tspan fill="#b4befe">Claude Opus 5.5</tspan><tspan fill="#cdd6f4"> · </tspan><tspan fill="#b4befe">High</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#94e2d5">/workspace/project</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#f38ba8">ctx 86%</tspan><tspan fill="#cdd6f4"> │ </tspan><tspan fill="#f5c2e7">Pro</tspan></text>
 <text x="28" y="234" xml:space="preserve"><tspan fill="#cdd6f4">credits 1200 left</tspan></text>
-<text x="28" y="258" xml:space="preserve"><tspan fill="#fab387">claude</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 4% ↻1h00m</tspan></text>
+<text x="28" y="258" xml:space="preserve"><tspan fill="#fab387">claude</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 4% ↻ 1h00m</tspan></text>
 <text x="28" y="282" xml:space="preserve"><tspan fill="#fab387">disabled</tspan><tspan fill="#cdd6f4">  </tspan><tspan fill="#cdd6f4">bucket disabled</tspan></text>
-<text x="28" y="306" xml:space="preserve"><tspan fill="#fab387">gemini</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 0% ↻2h00m</tspan></text>
+<text x="28" y="306" xml:space="preserve"><tspan fill="#fab387">gemini</tspan><tspan fill="#cdd6f4">    </tspan><tspan fill="#f38ba8">weekly 0% ↻ 2h00m</tspan></text>
 <text x="28" y="330" xml:space="preserve"><tspan fill="#fab387">unknown</tspan><tspan fill="#cdd6f4">   </tspan><tspan fill="#cdd6f4">bucket unknown</tspan></text>
 </g></svg>

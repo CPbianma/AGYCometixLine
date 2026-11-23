@@ -192,11 +192,11 @@ fn quota(context: &Ctx, options: &Options) -> Option<Reading> {
         };
         if matches!(reading.severity, Some(Severity::Warn | Severity::Crit)) {
             let marker = if context.glyphs == GlyphTier::Ascii {
-                "reset "
+                "reset"
             } else {
                 "↻"
             };
-            reading = reading.set("alert_reset", format!("{marker}{reset}"));
+            reading = reading.set("alert_reset", format!("{marker} {reset}"));
         }
         reading = reading.set("reset", reset);
     }
