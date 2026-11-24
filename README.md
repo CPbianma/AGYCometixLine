@@ -8,9 +8,35 @@ A Rust status line for **Antigravity CLI (AGY)**, forked from CCometixLine. It k
 
 The image uses actual `agyline preview` output from built-in sample data, not a user session.
 
-**Version: 0.1.0.** The repository is **AGYCometixLine**; the executable is **`agyline`**. Build from source: there is no published fork npm package or binary release. `@cometix/ccline` is the upstream package.
+**Version: 0.1.0.** The repository is **AGYCometixLine** and the executable is **`agyline`**. Prebuilt binaries are published on GitHub Releases; no Rust toolchain is needed to install them. There is no published npm package—`@cometix/ccline` is the upstream package.
 
-## Build and connect locally
+## Install a prebuilt binary (recommended)
+
+macOS / Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.sh | bash
+```
+
+Windows PowerShell:
+
+```powershell
+irm https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.ps1 | iex
+```
+
+The installer selects the current platform, downloads the latest [GitHub Release](https://github.com/CPbianma/AGYCometixLine/releases), verifies its SHA-256 checksum, and runs `agyline install`. The AGY integration backs up existing settings before connecting the status line. Restart AGY if the status line does not refresh immediately.
+
+To install a specific release on macOS / Linux:
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.sh | AGYLINE_VERSION=v0.1.0 bash
+```
+
+On Windows, set `$env:AGYLINE_VERSION = "v0.1.0"` before running the installer. You can also download an archive and `SHA256SUMS` manually from the Releases page, extract `agyline`, and run `agyline install`.
+
+The installed executable is `~/.gemini/antigravity-cli/agyline/agyline` on macOS / Linux, or `agyline.exe` in the equivalent directory on Windows. Run it with `--config` to open the TUI.
+
+## Build and connect from source (optional)
 
 Requires Rust **1.89 or newer**. In a local checkout of this fork:
 
@@ -19,6 +45,17 @@ cargo build --release --locked
 ```
 
 The Cargo package is still named `ccometixline`; the public binary is **`agyline`** (`agyline.exe` on Windows).
+
+## Release a new version
+
+Update `Cargo.toml` and the changelog, merge the change into the default branch, then push a matching version tag:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow builds Linux x64, macOS x64 / ARM64 and Windows x64 archives, generates `SHA256SUMS`, and publishes them to a GitHub Release. A manual workflow dispatch only builds downloadable workflow artifacts; it does not publish a release.
 
 Windows PowerShell:
 
