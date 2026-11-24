@@ -8,7 +8,44 @@
 
 上图取自 `agyline preview` 对内置虚构会话的实际输出，不是用户桌面截图。
 
-**当前版本 0.1.0，仅支持本地／源码安装。** GitHub 仓库名为 **AGYCometixLine**，可执行命令仍为 **`agyline`**。未发布 npm 包或预编译版本；`@cometix/ccline` 是上游包，不是本项目。
+**当前版本 0.1.0。** GitHub 仓库名为 **AGYCometixLine**，可执行命令为 **`agyline`**。安装时可直接下载 GitHub Releases 的预编译包，不需要 Rust 工具链。项目未发布 npm 包；`@cometix/ccline` 是上游包，不是本项目。
+
+## 安装预编译版本（推荐）
+
+macOS／Linux：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.sh | bash
+```
+
+Windows PowerShell：
+
+```powershell
+irm https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.ps1 | iex
+```
+
+安装器会识别当前平台，下载最新 [GitHub Release](https://github.com/CPbianma/AGYCometixLine/releases)，校验 SHA-256，然后执行 `agyline install` 接入 AGY。修改已有设置前会保留备份。如果状态栏没有立即刷新，请重启 AGY。
+
+macOS／Linux 安装指定版本：
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/CPbianma/AGYCometixLine/main/install.sh | AGYLINE_VERSION=v0.1.0 bash
+```
+
+Windows 可在运行安装器前设置 `$env:AGYLINE_VERSION = "v0.1.0"`。也可以从 Releases 页面手动下载对应压缩包和 `SHA256SUMS`，解压后运行 `agyline install`。
+
+安装后的稳定程序位于 `~/.gemini/antigravity-cli/agyline/agyline`；Windows 使用同目录下的 `agyline.exe`。在完整路径后加 `--config` 可打开配置器。
+
+## 发布新版本
+
+更新 `Cargo.toml` 和更新日志，将修改合并到默认分支后，推送对应的版本标签：
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+发布工作流会构建 Linux x64、macOS x64／ARM64 和 Windows x64 压缩包，生成 `SHA256SUMS`，并发布到 GitHub Release。手动触发工作流只生成可下载的构建 artifact，不发布 Release。
 
 ## 能做什么
 
@@ -25,7 +62,7 @@
 3. **没有可靠字段就不伪造。** 本协议没有可靠的固定 5 小时／7 天窗口、缓存 TTL 或自动压缩阈值，因此不展示伪造的配速、缓存倒计时或距自动压缩数值。
 4. 不读取凭据文件、不调用模型、不修改或 patch `agy.exe`。状态栏使用宿主传入的数据；如自行添加 `cmd` 指标，则会执行你明确配置的本地命令。
 
-## 从源码构建
+## 从源码构建（可选）
 
 需要 **Rust 1.89 或更新版本**及对应平台的编译工具链；Git 指标需要 Git。图标建议使用 Nerd Font，没有时可在 TUI 中改用 Unicode 或 ASCII。
 
@@ -205,13 +242,13 @@ CI 配置对 Windows／macOS／Linux 运行测试，并执行格式与 Clippy �
 
 可选真实宿主诊断脚本 `scripts/verify_agy_host.py` 需要 Windows 及隔离环境中的 `pywinpty`。它默认用临时 `--settings` 覆盖，只保存白名单处理后的诊断输入及布尔摘要，不记录原始终端横幅；产物放在 Git 忽略的 `local/`，仍不应公开上传。`scripts/verify_local_install.py --apply` 会修改持久集成，只有明确需要更新安装时才使用。
 
-## 分发状态
+## 分发与发布
 
-- 源码仓库：[CPbianma/AGYCometixLine](https://github.com/CPbianma/AGYCometixLine)。当前仅支持源码构建，未发布 npm 包或正式二进制下载。
-- `npm/` 保留为私有本地辅助入口，所有包均设置 `private: true`，没有上游二进制依赖，不支持通过它下载或发布本 fork。
-- 旧 postinstall 仅提示，不创建目录、不复制二进制、不改宿主设置。历史文件名 `npm/main/bin/ccline.js` 现在只转发给已安装的本 fork `agyline`，不会查找 `.claude`、调用上游包或退回 PATH 上的同名程序。
-- `prepare-packages.js` 无论参数如何都失败关闭，不生成发布目录。不要把上游 npm 包或发布流水线当作 fork 的安装通道。
-- `.github/workflows/release.yml` 仅允许手动触发，使用只读仓库权限，在 Windows／macOS／Linux 构建以 `agyline` 命名的 workflow artifact；不创建 GitHub Release、不执行 npm 发布。artifact 不是已经公开发布的产品版本。
+- 源码仓库：[CPbianma/AGYCometixLine](https://github.com/CPbianma/AGYCometixLine)。
+- [GitHub Releases](https://github.com/CPbianma/AGYCometixLine/releases) 提供 Linux x64、macOS x64／ARM64 和 Windows x64 预编译压缩包，以及覆盖全部压缩包的 `SHA256SUMS`。
+- 根目录 `install.sh` 和 `install.ps1` 会下载并校验预编译包，再调用现有的可恢复安装流程；无需安装 Rust。
+- `.github/workflows/release.yml` 支持手动构建 artifact，并在推送 `v*` 标签时自动创建对应的 GitHub Release。发布任务仅获得 `contents: write` 权限，构建任务仍为只读权限。
+- 当前没有发布 npm 包；`@cometix/ccline` 属于上游项目。
 
 ## 上游与许可状态
 

@@ -1,7 +1,9 @@
-name: Build agyline artifacts (manual only)
+name: Build and release agyline
 
-# No tag trigger, release creation, registry credentials or package publication.
 on:
+  push:
+    tags:
+      - "v*"
   workflow_dispatch:
 
 permissions:
@@ -45,9 +47,75 @@ jobs:
       - name: Build agyline with the lockfile
         run: cargo build --release --locked --bin agyline --target ${{ matrix.target }}
 
-      - name: Upload agyline workflow artifact
+      - name: Check the built executable
+        shell: bash
+        run: '"target/${{ matrix.target }}/release/${{ matrix.executable }}" --version'
+
+      - name: Package macOS or Linux archive
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          mkdir -p dist
+          tar -czf "dist/agyline-${{ matrix.target }}.tar.gz" \
+            -C "target/${{ matrix.target }}/release" agyline \
+            -C "$GITHUB_WORKSPACE" README.md README.zh.md THIRD_PARTY_NOTICES.md
+
+      - name: Package Windows archive
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path dist | Out-Null
+          $files = @(
+            "target/${{ matrix.target }}/release/agyline.exe",
+            "README.md",
+            "README.zh.md",
+            "THIRD_PARTY_NOTICES.md"
+          )
+          Compress-Archive -LiteralPath $files -DestinationPath "dist/agyline-${{ matrix.target }}.zip"
+
+      - name: Upload packaged workflow artifact
         uses: actions/upload-artifact@v4
         with:
           name: agyline-${{ matrix.target }}
-          path: target/${{ matrix.target }}/release/${{ matrix.executable }}
+          path: dist/agyline-${{ matrix.target }}.*
           if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download packaged artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Assemble release files and checksums
+        shell: bash
+        run: |
+          mkdir -p dist
+          find artifacts -type f \( -name '*.tar.gz' -o -name '*.zip' \) -exec cp '{}' dist/ \;
+          cd dist
+          sha256sum agyline-*.tar.gz agyline-*.zip > SHA256SUMS
+
+      - name: Create or update the tag release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/* --clobber
+          else
+            gh release create "$tag" dist/* \
+              --title "AGYCometixLine $tag" \
+              --generate-notes
+          fi
